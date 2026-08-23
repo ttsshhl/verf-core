@@ -1,0 +1,56 @@
+version: "3.8"
+
+networks:
+  verf-net:
+    name: verf-net
+
+volumes:
+  verf-workspace:
+  verf-data:
+  traefik-certs:
+
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=verf-net"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # HTTP -> HTTPS redirect
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Let's Encrypt via HTTP challenge — swap for dnschallenge if ports 80/443
+      # aren't directly reachable (common with some RU hosting/CDN setups).
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+    networks:
+      - verf-net
+
+  verf-core:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      VERF_DATABASE_URL: sqlite:////data/verf.db
+      VERF_WORKSPACE_DIR: /workspace
+      VERF_DOCKER_NETWORK: verf-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # verf-core builds/runs sibling containers on the host
+      - verf-workspace:/workspace
+      - verf-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"   # bound to localhost only — put behind Traefik/SSH tunnel for real admin access
+    networks:
+      - verf-net
