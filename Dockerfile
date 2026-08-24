@@ -1,12 +1,16 @@
 FROM python:3.12-slim
 
+RUN sed -i 's|deb.debian.org|mirror.yandex.ru|g' /etc/apt/sources.list.d/debian.sources
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY vendor ./vendor
+RUN pip install --no-cache-dir ./vendor/*.whl \
+    && pip install --no-cache-dir -i https://mirror.yandex.ru/pypi/web/simple -r requirements.txt
 
 COPY app ./app
 
