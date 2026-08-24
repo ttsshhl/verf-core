@@ -21,6 +21,44 @@ class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserCreate(BaseModel):
+    email: str
+    password: str = Field(..., min_length=8)
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    plan: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class SubscribeRequest(BaseModel):
+    plan: str  # "pro" | "business"
+    provider: str = "yookassa"  # "yookassa" | "cryptomus"
+
+
+class SubscriptionOut(BaseModel):
+    id: str
+    plan: str
+    status: str
+    amount_rub: int
+    confirmation_url: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DeploymentOut(BaseModel):
     id: str
     project_id: str

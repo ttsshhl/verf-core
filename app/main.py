@@ -1,15 +1,21 @@
 import json
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Header
 from sqlalchemy.orm import Session
 
-from app.config import ADMIN_API_KEY, DOMAIN_SUFFIX
+from app import auth, billing
+from app.config import ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS
 from app.db import get_db, init_db
-from app.models import Project, Deployment, DeployStatus
+from app.models import Project, Deployment, DeployStatus, User, Subscription, SubscriptionStatus
 from app.pipeline import run_deploy
-from app.schemas import ProjectCreate, ProjectOut, DeploymentOut
+from app.schemas import (
+    ProjectCreate, ProjectOut, DeploymentOut,
+    UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut,
+)
 from app.webhook import verify_signature, extract_push_info
 
 
@@ -29,10 +35,201 @@ def require_admin(x_api_key: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail="Неверный или отсутствующий X-API-Key")
 
 
+def get_current_user(
+    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+) -> User:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Требуется авторизация: заголовок Authorization: Bearer <token>")
+    token = authorization.removeprefix("Bearer ")
+    try:
+        user_id = auth.decode_access_token(token)
+    except auth.InvalidToken as exc:
+        raise HTTPException(status_code=401, detail=f"Недействительный токен: {exc}")
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
+    return user
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+
+# ---------- Auth ----------
+
+@app.post("/auth/register", response_model=TokenOut)
+def register(payload: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter_by(email=payload.email).first():
+        raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже зарегистрирован")
+    user = User(email=payload.email, password_hash=auth.hash_password(payload.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return TokenOut(access_token=auth.create_access_token(user.id))
+
+
+@app.post("/auth/login", response_model=TokenOut)
+def login(payload: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter_by(email=payload.email).first()
+    if not user or not auth.verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Неверная почта или пароль")
+    return TokenOut(access_token=auth.create_access_token(user.id))
+
+
+@app.get("/me", response_model=UserOut)
+def me(user: User = Depends(get_current_user)):
+    return user
+
+
+# ---------- Personal cabinet: self-service projects ----------
+
+@app.post("/me/projects", response_model=ProjectOut)
+def create_my_project(payload: ProjectCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if db.query(Project).filter_by(slug=payload.slug).first():
+        raise HTTPException(status_code=409, detail="Проект с таким slug уже существует")
+
+    limit = PLAN_PROJECT_LIMITS.get(user.plan, PLAN_PROJECT_LIMITS["free"])
+    if limit is not None:
+        current_count = db.query(Project).filter_by(owner_id=user.id).count()
+        if current_count >= limit:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Лимит тарифа «{user.plan}» — {limit} проект(ов). Оформи более высокий тариф в /billing/subscribe.",
+            )
+
+    project = Project(
+        owner_id=user.id, slug=payload.slug, repo_url=payload.repo_url, branch=payload.branch,
+        kind=payload.kind, env_json=json.dumps(payload.env),
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return _to_project_out(project)
+
+
+@app.get("/me/projects", response_model=list[ProjectOut])
+def list_my_projects(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return [_to_project_out(p) for p in db.query(Project).filter_by(owner_id=user.id).all()]
+
+
+@app.delete("/me/projects/{slug}")
+def delete_my_project(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+    from app import deployer
+    deployer.stop_and_remove(project.slug)
+    db.delete(project)
+    db.commit()
+    return {"deleted": slug}
+
+
+# ---------- Billing ----------
+
+@app.post("/billing/subscribe", response_model=SubscriptionOut)
+def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.config import PLAN_PRICES_RUB
+    if payload.plan not in PLAN_PRICES_RUB:
+        raise HTTPException(status_code=400, detail="Тариф должен быть 'pro' или 'business'")
+    if payload.provider not in ("yookassa", "cryptomus"):
+        raise HTTPException(status_code=400, detail="provider должен быть 'yookassa' или 'cryptomus'")
+
+    subscription = Subscription(
+        user_id=user.id, plan=payload.plan, status=SubscriptionStatus.pending,
+        provider=payload.provider, amount_rub=PLAN_PRICES_RUB[payload.plan],
+    )
+    db.add(subscription)
+    db.commit()
+    db.refresh(subscription)
+
+    try:
+        if payload.provider == "yookassa":
+            payment = billing.create_payment(payload.plan, subscription.id)
+            confirmation_url = payment.get("confirmation", {}).get("confirmation_url")
+            external_id = payment["id"]
+        else:
+            payment = billing.create_crypto_payment(payload.plan, subscription.id)
+            confirmation_url = payment.get("url")
+            external_id = payment["uuid"]
+    except billing.BillingError as exc:
+        db.delete(subscription)
+        db.commit()
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    subscription.external_payment_id = external_id
+    db.commit()
+
+    return SubscriptionOut(
+        id=subscription.id, plan=subscription.plan, status=subscription.status,
+        amount_rub=subscription.amount_rub, confirmation_url=confirmation_url,
+    )
+
+
+@app.post("/webhook/yookassa")
+async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+    payment_id = body.get("object", {}).get("id")
+    if not payment_id:
+        raise HTTPException(status_code=400, detail="В теле вебхука нет object.id")
+
+    # Never trust the webhook body for the actual status — ask ЮKassa directly.
+    try:
+        payment = billing.fetch_payment(payment_id)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    subscription = db.query(Subscription).filter_by(
+        external_payment_id=payment_id, provider="yookassa"
+    ).first()
+    if not subscription:
+        return {"ignored": "unknown payment_id"}
+
+    if payment.get("status") == "succeeded" and subscription.status != SubscriptionStatus.active:
+        _activate_subscription(db, subscription)
+    elif payment.get("status") == "canceled":
+        subscription.status = SubscriptionStatus.canceled
+        db.commit()
+
+    return {"status": "ok"}
+
+
+@app.post("/webhook/cryptomus")
+async def cryptomus_webhook(request: Request, db: Session = Depends(get_db)):
+    body = await request.json()
+
+    if not billing.verify_cryptomus_signature(body):
+        raise HTTPException(status_code=401, detail="Неверная подпись вебхука Cryptomus")
+
+    payment_uuid = body.get("uuid")
+    status = body.get("status")  # "paid", "paid_over", "wrong_amount", "cancel", "fail" — see Cryptomus docs
+    if not payment_uuid:
+        raise HTTPException(status_code=400, detail="В теле вебхука нет uuid")
+
+    subscription = db.query(Subscription).filter_by(
+        external_payment_id=payment_uuid, provider="cryptomus"
+    ).first()
+    if not subscription:
+        return {"ignored": "unknown payment_id"}
+
+    if status in ("paid", "paid_over") and subscription.status != SubscriptionStatus.active:
+        _activate_subscription(db, subscription)
+    elif status in ("cancel", "fail"):
+        subscription.status = SubscriptionStatus.canceled
+        db.commit()
+
+    return {"status": "ok"}
+
+
+def _activate_subscription(db: Session, subscription: Subscription) -> None:
+    subscription.status = SubscriptionStatus.active
+    subscription.activated_at = datetime.now(timezone.utc)
+    subscription.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    subscription.user.plan = subscription.plan
+    db.commit()
+
+
+# ---------- Admin (existing, unchanged behaviour) ----------
 
 @app.post("/projects", response_model=ProjectOut, dependencies=[Depends(require_admin)])
 def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):

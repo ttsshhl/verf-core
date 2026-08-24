@@ -35,10 +35,48 @@ class DeployStatus(str, enum.Enum):
     failed = "failed"
 
 
+class SubscriptionStatus(str, enum.Enum):
+    pending = "pending"   # payment created, waiting for confirmation
+    active = "active"
+    expired = "expired"
+    canceled = "canceled"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    plan = Column(String, default="free")  # "free" | "pro" | "business" — mirrors latest active subscription
+    created_at = Column(DateTime, default=utcnow)
+
+    projects = relationship("Project", back_populates="owner")
+    subscriptions = relationship("Subscription", back_populates="user", order_by="Subscription.created_at.desc()")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    plan = Column(String, nullable=False)  # "pro" | "business"
+    status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.pending)
+    provider = Column(String, nullable=False, default="yookassa")  # "yookassa" | "cryptomus"
+    external_payment_id = Column(String, nullable=True, index=True)
+    amount_rub = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=utcnow)
+    activated_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="subscriptions")
+
+
 class Project(Base):
     __tablename__ = "projects"
 
     id = Column(String, primary_key=True, default=gen_id)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)  # nullable: admin-created projects may have no owner
     slug = Column(String, unique=True, nullable=False, index=True)
     repo_url = Column(String, nullable=False)
     branch = Column(String, default="main")
@@ -47,6 +85,7 @@ class Project(Base):
     env_json = Column(Text, default="{}")  # serialized dict of env vars injected into the container
     created_at = Column(DateTime, default=utcnow)
 
+    owner = relationship("User", back_populates="projects")
     deployments = relationship("Deployment", back_populates="project", order_by="Deployment.created_at.desc()")
 
 
