@@ -10,32 +10,59 @@ volumes:
   traefik-certs:
 
 services:
-  traefik:
-    image: traefik:v3.1
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
     restart: unless-stopped
     environment:
-      - DOCKER_API_VERSION=1.44
+      CONTAINERS: 1
+      NETWORKS: 1
+      SERVICES: 1
+      TASKS: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - verf-net
+
+  traefik:
+    image: traefik:v3.5
+    restart: unless-stopped
+    environment:
+      REGRU_USERNAME: ${REGRU_USERNAME}
+      REGRU_PASSWORD: ${REGRU_PASSWORD}
+      REGRU_PROPAGATION_TIMEOUT: ${REGRU_PROPAGATION_TIMEOUT}
+      REGRU_POLLING_INTERVAL: ${REGRU_POLLING_INTERVAL}
     command:
       - "--providers.docker=true"
+      - "--providers.docker.endpoint=tcp://docker-proxy:2375"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=verf-net"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      # HTTP -> HTTPS redirect
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      # Let's Encrypt via HTTP challenge — swap for dnschallenge if ports 80/443
-      # aren't directly reachable (common with some RU hosting/CDN setups).
-      - "--certificatesresolvers.le.acme.httpchallenge=true"
-      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.dnschallenge=true"
+      - "--certificatesresolvers.le.acme.dnschallenge.provider=regru"
       - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-certs:/letsencrypt
+    networks:
+      - verf-net
+    depends_on:
+      - docker-proxy
+
+  landing:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./landing:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.landing.rule=Host(`verfdeploy.ru`) || Host(`www.verfdeploy.ru`)"
+      - "traefik.http.routers.landing.entrypoints=websecure"
+      - "traefik.http.routers.landing.tls.certresolver=le"
+      - "traefik.http.services.landing.loadbalancer.server.port=80"
     networks:
       - verf-net
 
@@ -49,10 +76,16 @@ services:
       VERF_WORKSPACE_DIR: /workspace
       VERF_DOCKER_NETWORK: verf-net
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # verf-core builds/runs sibling containers on the host
+      - /var/run/docker.sock:/var/run/docker.sock
       - verf-workspace:/workspace
       - verf-data:/data
     ports:
-      - "127.0.0.1:8000:8000"   # bound to localhost only — put behind Traefik/SSH tunnel for real admin access
+      - "127.0.0.1:8000:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.verf-api.rule=Host(`api.verfdeploy.ru`)"
+      - "traefik.http.routers.verf-api.entrypoints=websecure"
+      - "traefik.http.routers.verf-api.tls.certresolver=le"
+      - "traefik.http.services.verf-api.loadbalancer.server.port=8000"
     networks:
       - verf-net
