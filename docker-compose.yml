@@ -59,10 +59,24 @@ services:
       - ./landing:/usr/share/nginx/html:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.landing.rule=Host(`verfdeploy.ru`) || Host(`www.verfdeploy.ru`)"
+      - "traefik.http.routers.landing.rule=Host(`verfdeploy.ru`)"
       - "traefik.http.routers.landing.entrypoints=websecure"
       - "traefik.http.routers.landing.tls.certresolver=le"
       - "traefik.http.services.landing.loadbalancer.server.port=80"
+    networks:
+      - verf-net
+
+  cabinet:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./cabinet:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cabinet.rule=Host(`cabinet.verfdeploy.ru`)"
+      - "traefik.http.routers.cabinet.entrypoints=websecure"
+      - "traefik.http.routers.cabinet.tls.certresolver=le"
+      - "traefik.http.services.cabinet.loadbalancer.server.port=80"
     networks:
       - verf-net
 

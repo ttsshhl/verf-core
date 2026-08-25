@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Header
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app import auth, billing
@@ -26,6 +27,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="VERF core", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[f"https://{DOMAIN_SUFFIX}", f"https://cabinet.{DOMAIN_SUFFIX}", f"https://www.{DOMAIN_SUFFIX}"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def require_admin(x_api_key: str | None = Header(default=None)):
@@ -111,6 +120,14 @@ def create_my_project(payload: ProjectCreate, user: User = Depends(get_current_u
 @app.get("/me/projects", response_model=list[ProjectOut])
 def list_my_projects(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return [_to_project_out(p) for p in db.query(Project).filter_by(owner_id=user.id).all()]
+
+
+@app.get("/me/projects/{slug}/deployments", response_model=list[DeploymentOut])
+def list_my_deployments(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+    return [_to_deployment_out(d) for d in project.deployments]
 
 
 @app.delete("/me/projects/{slug}")

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кабинет — VERF</title>
+<link rel="icon" type="image/x-icon" href="https://verfdeploy.ru/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #EDF2F6;
+    --bg-paper: #F5F8FA;
+    --ink: #0F2138;
+    --ink-soft: #48607A;
+    --grid: #C7D4E0;
+    --accent: #FF5A1F;
+    --accent-dim: #FFE4D6;
+    --brass: #B8901F;
+    --live: #00A876;
+    --danger: #D14343;
+    --line: #B9C6D6;
+    --radius: 4px;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{
+    background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans', sans-serif;
+    font-size:15px; line-height:1.5; min-height:100vh;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  a{ color:inherit; }
+  button, input, select{ font-family:inherit; font-size:inherit; }
+
+  .blueprint-bg{
+    background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:40px 40px; background-position:-1px -1px;
+  }
+
+  /* ---------- auth screen ---------- */
+  #auth-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .auth-card{
+    width:100%; max-width:380px; background:var(--bg-paper); border:1px solid var(--line);
+    border-radius:6px; padding:36px 32px; position:relative;
+  }
+  .auth-logo{
+    display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif;
+    font-weight:700; font-size:20px; margin-bottom:28px;
+  }
+  .auth-logo .mark{ width:22px; height:22px; border:2px solid var(--ink); border-radius:2px; position:relative; flex-shrink:0; }
+  .auth-logo .mark::after{ content:''; position:absolute; left:50%; top:50%; width:8px; height:8px; background:var(--accent); transform:translate(-50%,-50%); }
+
+  .auth-tabs{ display:flex; border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-bottom:24px; }
+  .auth-tab{
+    flex:1; padding:9px; text-align:center; background:transparent; border:none; cursor:pointer;
+    font-size:13.5px; font-weight:500; color:var(--ink-soft); transition:all .15s;
+  }
+  .auth-tab.active{ background:var(--ink); color:var(--bg); }
+
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; }
+  .field input{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:4px;
+    background:#fff; color:var(--ink); outline:none; transition:border-color .15s;
+  }
+  .field input:focus{ border-color:var(--ink); }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    padding:11px 20px; border-radius:4px; font-size:14px; font-weight:600; cursor:pointer;
+    border:1.5px solid var(--ink); background:var(--ink); color:var(--bg); transition:opacity .15s;
+  }
+  .btn:hover{ opacity:.88; }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn-ghost{ background:transparent; color:var(--ink); border-color:var(--line); }
+  .btn-danger{ border-color:var(--danger); color:var(--danger); background:transparent; }
+  .btn-sm{ width:auto; padding:7px 14px; font-size:13px; }
+
+  .error-msg{
+    font-size:13px; color:var(--danger); margin-top:14px; padding:10px 12px;
+    background:#FCEBEB; border-radius:4px; display:none;
+  }
+  .error-msg.show{ display:block; }
+
+  /* ---------- app shell ---------- */
+  #app{ display:none; min-height:100vh; }
+  header{
+    border-bottom:1px solid var(--line); padding:16px 0; background:rgba(237,242,246,0.92); backdrop-filter:blur(6px);
+    position:sticky; top:0; z-index:10;
+  }
+  .header-inner{ max-width:960px; margin:0 auto; padding:0 24px; display:flex; align-items:center; justify-content:space-between; }
+  .logo{ display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:18px; }
+  .logo .mark{ width:22px; height:22px; border:2px solid var(--ink); border-radius:2px; position:relative; }
+  .logo .mark::after{ content:''; position:absolute; left:50%; top:50%; width:8px; height:8px; background:var(--accent); transform:translate(-50%,-50%); }
+  .user-info{ display:flex; align-items:center; gap:16px; font-size:13.5px; color:var(--ink-soft); }
+
+  .wrap{ max-width:960px; margin:0 auto; padding:0 24px; }
+  .tabs{ display:flex; gap:4px; margin:28px 0 24px; border-bottom:1px solid var(--line); }
+  .tab-btn{
+    padding:10px 4px; margin-right:24px; background:none; border:none; cursor:pointer;
+    font-size:14.5px; font-weight:500; color:var(--ink-soft); border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab-btn.active{ color:var(--ink); border-bottom-color:var(--accent); }
+
+  .panel{ display:none; padding-bottom:60px; }
+  .panel.active{ display:block; }
+
+  .section-title{ font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:600; margin-bottom:16px; }
+
+  /* project cards */
+  .project-card{
+    border:1px solid var(--line); border-radius:6px; background:var(--bg-paper); margin-bottom:14px; overflow:hidden;
+  }
+  .project-head{ padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .project-name{ display:flex; align-items:center; gap:10px; }
+  .project-name .slug{ font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px; }
+  .kind-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); border:1px solid var(--line); border-radius:999px; padding:2px 9px; }
+  .project-url{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--brass); }
+  .project-actions{ display:flex; gap:8px; }
+  .icon-btn{
+    background:none; border:1px solid var(--line); border-radius:4px; padding:6px 10px; cursor:pointer;
+    font-size:12px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;
+  }
+  .icon-btn:hover{ border-color:var(--ink); color:var(--ink); }
+
+  .project-detail{ border-top:1px solid var(--line); padding:14px 18px; display:none; }
+  .project-detail.show{ display:block; }
+  .webhook-box{
+    background:var(--ink); color:var(--bg); border-radius:4px; padding:12px 14px; font-family:'IBM Plex Mono',monospace;
+    font-size:12px; margin-bottom:12px; word-break:break-all; position:relative;
+  }
+  .webhook-box .lbl{ color:#6E8AA6; display:block; margin-bottom:4px; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; }
+  .deploy-row{
+    display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:12px;
+  }
+  .deploy-row:first-child{ border-top:none; }
+  .status-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .status-running{ background:var(--live); }
+  .status-failed{ background:var(--danger); }
+  .status-pending, .status-cloning, .status-building, .status-starting{ background:var(--brass); }
+
+  /* new project form */
+  .new-project-form{
+    border:1px dashed var(--line); border-radius:6px; padding:20px; margin-bottom:24px; background:var(--bg-paper);
+  }
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  .form-row.full{ grid-template-columns:1fr; }
+  .field-sm label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; }
+  .field-sm input, .field-sm select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink);
+  }
+
+  .empty-state{ text-align:center; padding:48px 20px; color:var(--ink-soft); font-size:14px; }
+
+  /* billing */
+  .plan-badge{
+    display:inline-flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; margin-bottom:28px;
+  }
+  .plan-badge b{ color:var(--accent); }
+  .plans-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .plan-card{ border:1px solid var(--line); border-radius:6px; padding:24px; background:var(--bg-paper); }
+  .plan-card h3{ font-family:'Space Grotesk',sans-serif; font-size:17px; margin-bottom:4px; }
+  .plan-card .price{ font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin:10px 0 16px; }
+  .plan-card .price span{ font-size:13px; color:var(--ink-soft); font-weight:500; }
+  .provider-row{ display:flex; gap:8px; }
+  .provider-row .btn{ flex:1; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--ink); color:var(--bg); padding:12px 20px; border-radius:6px; font-size:13.5px;
+    transition:all .2s; pointer-events:none; z-index:100; max-width:90vw; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:640px){
+    .plans-grid{ grid-template-columns:1fr; }
+    .form-row{ grid-template-columns:1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body class="blueprint-bg">
+
+<!-- ---------- auth screen ---------- -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo"><span class="mark"></span>VERF</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">Вход</button>
+      <button class="auth-tab" data-mode="register">Регистрация</button>
+    </div>
+    <form id="auth-form">
+      <div class="field">
+        <label for="auth-email">Почта</label>
+        <input type="email" id="auth-email" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="auth-password">Пароль</label>
+        <input type="password" id="auth-password" required minlength="8" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn" id="auth-submit">Войти</button>
+      <div class="error-msg" id="auth-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ---------- app ---------- -->
+<div id="app">
+  <header>
+    <div class="header-inner">
+      <div class="logo"><span class="mark"></span>VERF</div>
+      <div class="user-info">
+        <span id="user-email"></span>
+        <button class="icon-btn" id="logout-btn">Выйти</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab-btn active" data-panel="projects">Проекты</button>
+      <button class="tab-btn" data-panel="billing">Тариф</button>
+    </div>
+
+    <div class="panel active" id="panel-projects">
+      <div class="new-project-form">
+        <div class="section-title" style="margin-bottom:14px; font-size:16px;">Новый проект</div>
+        <form id="new-project-form">
+          <div class="form-row">
+            <div class="field-sm">
+              <label for="np-slug">Slug (поддомен)</label>
+              <input type="text" id="np-slug" pattern="[a-z0-9][a-z0-9-]{1,30}[a-z0-9]" placeholder="my-bot" required>
+            </div>
+            <div class="field-sm">
+              <label for="np-kind">Тип</label>
+              <select id="np-kind">
+                <option value="site">Сайт</option>
+                <option value="bot">Бот</option>
+                <option value="backend">Бэкенд</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="field-sm">
+              <label for="np-repo">URL репозитория (GitHub)</label>
+              <input type="text" id="np-repo" placeholder="https://github.com/you/project.git" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field-sm">
+              <label for="np-branch">Ветка</label>
+              <input type="text" id="np-branch" value="main">
+            </div>
+            <div style="display:flex; align-items:flex-end;">
+              <button type="submit" class="btn" id="np-submit">Создать проект</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="section-title">Твои проекты</div>
+      <div id="projects-list"></div>
+    </div>
+
+    <div class="panel" id="panel-billing">
+      <div class="plan-badge">Текущий тариф: <b id="current-plan">—</b></div>
+      <div class="plans-grid">
+        <div class="plan-card">
+          <h3>Pro</h3>
+          <div class="price">990₽<span>/мес</span></div>
+          <div class="provider-row">
+            <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="pro" data-provider="yookassa">Картой</button>
+            <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="pro" data-provider="cryptomus">Криптой</button>
+          </div>
+        </div>
+        <div class="plan-card">
+          <h3>Business</h3>
+          <div class="price">2 990₽<span>/мес</span></div>
+          <div class="provider-row">
+            <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="business" data-provider="yookassa">Картой</button>
+            <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="business" data-provider="cryptomus">Криптой</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://api.verfdeploy.ru';
+let token = localStorage.getItem('verf_token');
+let currentUser = null;
+
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? 'var(--danger)' : 'var(--ink)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+async function api(path, opts = {}){
+  const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, Object.assign({}, opts, {headers}));
+  const isJson = (res.headers.get('content-type') || '').includes('application/json');
+  const data = isJson ? await res.json() : null;
+  if(!res.ok){
+    const msg = (data && data.detail) ? data.detail : ('Ошибка ' + res.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ---------- auth screen ----------
+let authMode = 'login';
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    authMode = tab.dataset.mode;
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+    document.getElementById('auth-error').classList.remove('show');
+  });
+});
+
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-submit');
+  errEl.classList.remove('show');
+  btn.disabled = true;
+  try{
+    const path = authMode === 'login' ? '/auth/login' : '/auth/register';
+    const data = await api(path, {method: 'POST', body: JSON.stringify({email, password})});
+    token = data.access_token;
+    localStorage.setItem('verf_token', token);
+    await enterApp();
+  }catch(err){
+    errEl.textContent = err.message;
+    errEl.classList.add('show');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  token = null;
+  localStorage.removeItem('verf_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+});
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + btn.dataset.panel));
+  });
+});
+
+// ---------- projects ----------
+const STATUS_LABELS = {
+  pending: 'В очереди', cloning: 'Клонирование', building: 'Сборка',
+  starting: 'Запуск', running: 'Работает', failed: 'Ошибка',
+};
+
+function renderProjects(projects){
+  const list = document.getElementById('projects-list');
+  if(projects.length === 0){
+    list.innerHTML = '<div class="empty-state">Проектов пока нет — создай первый выше, и он появится здесь.</div>';
+    return;
+  }
+  list.innerHTML = projects.map(p => `
+    <div class="project-card" data-slug="${p.slug}">
+      <div class="project-head">
+        <div class="project-name">
+          <span class="slug">${p.slug}</span>
+          <span class="kind-tag">${p.kind}</span>
+        </div>
+        <a class="project-url" href="${p.url}" target="_blank" rel="noopener">${p.url.replace('https://','')}</a>
+        <div class="project-actions">
+          <button class="icon-btn" data-action="toggle">детали</button>
+          <button class="icon-btn" data-action="delete" style="color:var(--danger); border-color:var(--danger);">удалить</button>
+        </div>
+      </div>
+      <div class="project-detail">
+        <div class="webhook-box">
+          <span class="lbl">Payload URL для GitHub-вебхука</span>
+          ${API}/webhook/github/${p.slug}
+        </div>
+        <div class="webhook-box">
+          <span class="lbl">Webhook secret</span>
+          ${p.webhook_secret}
+        </div>
+        <div class="deploys" data-slug="${p.slug}">
+          <span style="font-size:12.5px; color:var(--ink-soft);">Загрузка истории деплоев…</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadProjects(){
+  try{
+    const projects = await api('/me/projects');
+    renderProjects(projects);
+  }catch(err){
+    showToast(err.message, true);
+  }
+}
+
+document.getElementById('projects-list').addEventListener('click', async (e) => {
+  const card = e.target.closest('.project-card');
+  if(!card) return;
+  const slug = card.dataset.slug;
+
+  if(e.target.dataset.action === 'toggle'){
+    const detail = card.querySelector('.project-detail');
+    const willShow = !detail.classList.contains('show');
+    detail.classList.toggle('show', willShow);
+    if(willShow){
+      const box = card.querySelector('.deploys');
+      try{
+        const deploys = await api(`/me/projects/${slug}/deployments`);
+        if(deploys.length === 0){
+          box.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">Пока не было ни одного деплоя — сделай git push в подключённый репозиторий.</span>';
+        }else{
+          box.innerHTML = deploys.map(d => `
+            <div class="deploy-row">
+              <span class="status-dot status-${d.status}"></span>
+              <span>${STATUS_LABELS[d.status] || d.status}</span>
+              <span style="color:var(--ink-soft);">${d.commit_sha ? d.commit_sha.slice(0,8) : ''}</span>
+              <span style="color:var(--ink-soft); margin-left:auto;">${new Date(d.created_at).toLocaleString('ru-RU')}</span>
+            </div>
+          `).join('');
+        }
+      }catch(err){
+        box.innerHTML = `<span style="font-size:12.5px; color:var(--danger);">${err.message}</span>`;
+      }
+    }
+  }
+
+  if(e.target.dataset.action === 'delete'){
+    if(!confirm(`Удалить проект «${slug}»? Это остановит и удалит его контейнер.`)) return;
+    try{
+      await api(`/me/projects/${slug}`, {method: 'DELETE'});
+      showToast('Проект удалён');
+      loadProjects();
+    }catch(err){
+      showToast(err.message, true);
+    }
+  }
+});
+
+document.getElementById('new-project-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('np-submit');
+  btn.disabled = true;
+  try{
+    await api('/me/projects', {
+      method: 'POST',
+      body: JSON.stringify({
+        slug: document.getElementById('np-slug').value.trim(),
+        repo_url: document.getElementById('np-repo').value.trim(),
+        branch: document.getElementById('np-branch').value.trim() || 'main',
+        kind: document.getElementById('np-kind').value,
+      }),
+    });
+    showToast('Проект создан — настрой вебхук на GitHub, детали в карточке ниже');
+    document.getElementById('new-project-form').reset();
+    document.getElementById('np-branch').value = 'main';
+    loadProjects();
+  }catch(err){
+    showToast(err.message, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// ---------- billing ----------
+document.querySelectorAll('.subscribe-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try{
+      const data = await api('/billing/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({plan: btn.dataset.plan, provider: btn.dataset.provider}),
+      });
+      if(data.confirmation_url){
+        window.open(data.confirmation_url, '_blank');
+        showToast('Открыта страница оплаты в новой вкладке');
+      }
+    }catch(err){
+      showToast(err.message, true);
+    }finally{
+      btn.disabled = false;
+    }
+  });
+});
+
+// ---------- boot ----------
+async function enterApp(){
+  try{
+    currentUser = await api('/me');
+    document.getElementById('user-email').textContent = currentUser.email;
+    document.getElementById('current-plan').textContent = currentUser.plan;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadProjects();
+  }catch(err){
+    token = null;
+    localStorage.removeItem('verf_token');
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+}
+
+if(token){ enterApp(); }
+</script>
+
+</body>
+</html>
