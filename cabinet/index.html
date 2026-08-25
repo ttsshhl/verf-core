@@ -206,6 +206,7 @@
       <button type="submit" class="btn" id="auth-submit">Войти</button>
       <div class="error-msg" id="auth-error"></div>
     </form>
+    <div id="plan-hint" style="display:none; margin-top:16px; padding:10px 12px; background:var(--accent-dim); border-radius:4px; font-size:12.5px; color:var(--ink);"></div>
   </div>
 </div>
 
@@ -297,6 +298,14 @@
 const API = 'https://api.verfdeploy.ru';
 let token = localStorage.getItem('verf_token');
 let currentUser = null;
+
+const PLAN_LABELS = {pro: 'Pro, 990₽/мес', business: 'Business, 2 990₽/мес'};
+const intendedPlan = new URLSearchParams(window.location.search).get('plan');
+if(intendedPlan && PLAN_LABELS[intendedPlan]){
+  const hint = document.getElementById('plan-hint');
+  hint.textContent = 'После входа откроем оформление тарифа «' + PLAN_LABELS[intendedPlan] + '»';
+  hint.style.display = 'block';
+}
 
 function showToast(msg, isError){
   const t = document.getElementById('toast');
@@ -516,6 +525,17 @@ async function enterApp(){
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     loadProjects();
+
+    if(intendedPlan && PLAN_LABELS[intendedPlan] && currentUser.plan !== intendedPlan){
+      document.querySelector('.tab-btn[data-panel="billing"]').click();
+      const targetBtn = document.querySelector(`.subscribe-btn[data-plan="${intendedPlan}"]`);
+      const card = targetBtn ? targetBtn.closest('.plan-card') : null;
+      if(card){
+        card.style.borderColor = 'var(--accent)';
+        card.style.boxShadow = '0 0 0 3px var(--accent-dim)';
+        card.scrollIntoView({behavior: 'smooth', block: 'center'});
+      }
+    }
   }catch(err){
     token = null;
     localStorage.removeItem('verf_token');
