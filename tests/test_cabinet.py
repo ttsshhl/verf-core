@@ -177,6 +177,24 @@ def test_cannot_delete_other_users_project(client):
     assert r.status_code == 404  # not found *for this user* — doesn't leak that it exists for someone else
 
 
+def test_my_deployments_empty_for_fresh_project(client):
+    token = _register(client, email="fresh@example.com")
+    client.post("/me/projects", headers=_auth_headers(token),
+                json={"slug": "fresh-proj", "repo_url": "https://x.git", "branch": "main", "kind": "bot"})
+    r = client.get("/me/projects/fresh-proj/deployments", headers=_auth_headers(token))
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_my_deployments_404_for_other_users_project(client):
+    token_a = _register(client, email="dep-owner@example.com")
+    token_b = _register(client, email="dep-attacker@example.com")
+    client.post("/me/projects", headers=_auth_headers(token_a),
+                json={"slug": "dep-proj", "repo_url": "https://x.git", "branch": "main", "kind": "bot"})
+    r = client.get("/me/projects/dep-proj/deployments", headers=_auth_headers(token_b))
+    assert r.status_code == 404
+
+
 # ---------- Billing ----------
 
 def test_subscribe_creates_payment(client, monkeypatch):
