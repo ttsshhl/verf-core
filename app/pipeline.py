@@ -42,10 +42,19 @@ def run_deploy(db: Session, project: Project, deployment: Deployment) -> None:
 
         set_status(DeployStatus.starting)
         env = json.loads(project.env_json or "{}")
-        container_id = deployer.run_container(project.slug, image_tag, profile.internal_port, env)
+
+        from app.config import PLAN_MEM_LIMITS, PLAN_CPU_QUOTAS, DEFAULT_MEM_LIMIT, DEFAULT_CPU_QUOTA
+        owner_plan = project.owner.plan if project.owner else "free"
+        mem_limit = PLAN_MEM_LIMITS.get(owner_plan, DEFAULT_MEM_LIMIT)
+        cpu_quota = PLAN_CPU_QUOTAS.get(owner_plan, DEFAULT_CPU_QUOTA)
+
+        container_id = deployer.run_container(
+            project.slug, image_tag, profile.internal_port, env,
+            mem_limit=mem_limit, cpu_quota=cpu_quota,
+        )
         deployment.container_id = container_id
         deployment.port = profile.internal_port
-        log(f"→ Контейнер запущен: {container_id[:12]}")
+        log(f"→ Контейнер запущен: {container_id[:12]} (тариф «{owner_plan}»: {mem_limit} RAM)")
         log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
 
         set_status(DeployStatus.running)

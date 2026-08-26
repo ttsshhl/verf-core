@@ -209,7 +209,7 @@ def test_subscribe_creates_payment(client, monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["plan"] == "pro"
-    assert body["amount_rub"] == 990
+    assert body["amount_rub"] == 490
     assert body["status"] == "pending"
     assert body["confirmation_url"] == "https://yookassa.ru/pay/yk_payment_123"
 

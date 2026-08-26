@@ -62,11 +62,19 @@ def _labels(slug: str) -> dict:
     }
 
 
-def run_container(slug: str, image_tag: str, internal_port: int, env: dict | None = None):
+def run_container(
+    slug: str, image_tag: str, internal_port: int, env: dict | None = None,
+    mem_limit: str = DEFAULT_MEM_LIMIT, cpu_quota: int = DEFAULT_CPU_QUOTA,
+):
     """Start the new container, then stop+remove any previous one for this slug.
 
     New-then-old ordering keeps the old version answering traffic until the
     new one is confirmed running — a minimal blue/green swap.
+
+    `mem_limit`/`cpu_quota` are resolved by the caller from the project
+    owner's plan (app.config.PLAN_MEM_LIMITS / PLAN_CPU_QUOTAS) — this
+    function just applies whatever it's given, defaulting to the free tier
+    for callers that don't resolve a plan (e.g. admin-created projects).
     """
     client = _client()
     ensure_network()
@@ -89,9 +97,9 @@ def run_container(slug: str, image_tag: str, internal_port: int, env: dict | Non
             network=DOCKER_NETWORK,
             environment=env or {},
             labels=_labels(slug),
-            mem_limit=DEFAULT_MEM_LIMIT,
+            mem_limit=mem_limit,
             cpu_period=100_000,
-            cpu_quota=DEFAULT_CPU_QUOTA,
+            cpu_quota=cpu_quota,
             restart_policy={"Name": "unless-stopped"},
         )
     except Exception as exc:

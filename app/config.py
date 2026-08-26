@@ -21,8 +21,14 @@ TRAEFIK_ENTRYPOINT = os.getenv("VERF_TRAEFIK_ENTRYPOINT", "websecure")
 TRAEFIK_CERTRESOLVER = os.getenv("VERF_TRAEFIK_CERTRESOLVER", "le")
 
 # Default resource limits per container (MVP / Free tier). Overridable per project later.
-DEFAULT_MEM_LIMIT = os.getenv("VERF_DEFAULT_MEM_LIMIT", "512m")
-DEFAULT_CPU_QUOTA = int(os.getenv("VERF_DEFAULT_CPU_QUOTA", str(50_000)))  # 0.5 CPU (cpu-period=100000 default)
+# Per-container resource limits, now actually tiered by the project owner's plan
+# (previously every project got the same "free" limit regardless of tariff —
+# closing that gap: this is what the landing page has promised all along).
+PLAN_MEM_LIMITS = {"free": "512m", "pro": "2048m", "business": "8192m"}
+PLAN_CPU_QUOTAS = {"free": 50_000, "pro": 100_000, "business": 200_000}  # cpu-period=100000, so 0.5 / 1.0 / 2.0 vCPU
+# Fallback for containers with no resolvable owner plan (e.g. admin-created projects).
+DEFAULT_MEM_LIMIT = os.getenv("VERF_DEFAULT_MEM_LIMIT", PLAN_MEM_LIMITS["free"])
+DEFAULT_CPU_QUOTA = int(os.getenv("VERF_DEFAULT_CPU_QUOTA", str(PLAN_CPU_QUOTAS["free"])))
 
 # --- Control plane auth ---
 # Single admin key for MVP (register/delete any project). Swap for real user auth later.
@@ -36,7 +42,7 @@ JWT_EXPIRE_MINUTES = int(os.getenv("VERF_JWT_EXPIRE_MINUTES", str(60 * 24 * 30))
 # --- Billing plans ---
 # None = unlimited projects for that plan.
 PLAN_PROJECT_LIMITS = {"free": 1, "pro": 5, "business": None}
-PLAN_PRICES_RUB = {"pro": 990, "business": 2990}  # monthly, matches the landing page
+PLAN_PRICES_RUB = {"pro": 490, "business": 1990}  # launch pricing — see README for rationale
 
 # --- ЮKassa (payment provider) ---
 YOOKASSA_SHOP_ID = os.getenv("VERF_YOOKASSA_SHOP_ID", "")
@@ -50,7 +56,7 @@ CRYPTOMUS_CALLBACK_URL = os.getenv("VERF_CRYPTOMUS_CALLBACK_URL", f"https://api.
 # Rough USD peg for RUB prices, since Cryptomus invoices are priced in USD/USDT.
 # This is a fixed approximation, not a live exchange rate — adjust as the rate moves,
 # or wire up a live-rate lookup later if the spread starts to matter.
-PLAN_PRICES_USD = {"pro": 12, "business": 35}
+PLAN_PRICES_USD = {"pro": 6, "business": 25}
 
 # --- GitHub OAuth (connect account, list repos, auto-create webhooks) ---
 # Create an OAuth App at https://github.com/settings/developers — Authorization

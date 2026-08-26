@@ -127,7 +127,7 @@ def test_webhook_push_triggers_deployment_record(client, fake_upstream, monkeypa
     # (webhook auth, git clone, project-type detection, DB writes) is real.
     from app import deployer
     monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
-    monkeypatch.setattr(deployer, "run_container", lambda slug, image, port, env: "fake_container_id_1234")
+    monkeypatch.setattr(deployer, "run_container", lambda slug, image, port, env, **kw: "fake_container_id_1234")
 
     proj = client.post("/projects", json={
         "slug": "push-test", "repo_url": str(fake_upstream), "branch": "main", "kind": "bot",

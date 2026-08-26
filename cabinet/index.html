@@ -161,7 +161,7 @@
     border:1px solid var(--line); border-radius:999px; padding:6px 14px; margin-bottom:28px;
   }
   .plan-badge b{ color:var(--accent); }
-  .plans-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .plans-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
   .plan-card{ border:1px solid var(--line); border-radius:6px; padding:24px; background:var(--bg-paper); }
   .plan-card h3{ font-family:'Space Grotesk',sans-serif; font-size:17px; margin-bottom:4px; }
   .plan-card .price{ font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; margin:10px 0 16px; }
@@ -189,7 +189,7 @@
 <!-- ---------- auth screen ---------- -->
 <div id="auth-screen">
   <div class="auth-card">
-    <div class="auth-logo"><span class="mark"></span>VERF</div>
+    <a class="auth-logo" href="https://verfdeploy.ru" style="text-decoration:none;"><span class="mark"></span>VERF</a>
     <div class="auth-tabs">
       <button class="auth-tab active" data-mode="login">Вход</button>
       <button class="auth-tab" data-mode="register">Регистрация</button>
@@ -214,7 +214,7 @@
 <div id="app">
   <header>
     <div class="header-inner">
-      <div class="logo"><span class="mark"></span>VERF</div>
+      <a class="logo" href="https://verfdeploy.ru" style="text-decoration:none;"><span class="mark"></span>VERF</a>
       <div class="user-info">
         <span id="user-email"></span>
         <button class="icon-btn" id="logout-btn">Выйти</button>
@@ -285,8 +285,28 @@
       <div class="plan-badge">Текущий тариф: <b id="current-plan">—</b></div>
       <div class="plans-grid">
         <div class="plan-card">
+          <h3>Free</h3>
+          <div class="price">0₽<span>/мес</span></div>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Чтобы попробовать, без карты</p>
+          <ul style="list-style:none; font-size:12.5px; color:var(--ink-soft); margin-bottom:16px; padding:0;">
+            <li style="padding:5px 0; border-top:1px solid var(--line);">1 проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">512 МБ RAM на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">0.5 vCPU на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">Поддомен *.verfdeploy.ru</li>
+          </ul>
+        </div>
+        <div class="plan-card" style="border-color:var(--ink); position:relative;">
+          <div style="position:absolute; top:-11px; left:24px; background:var(--accent); color:#fff; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; padding:4px 10px; border-radius:3px;">СТАРТОВАЯ ЦЕНА</div>
           <h3>Pro</h3>
-          <div class="price">990₽<span>/мес</span></div>
+          <div class="price">490₽<span>/мес</span></div>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Для рабочих ботов и сайтов</p>
+          <ul style="list-style:none; font-size:12.5px; color:var(--ink); margin-bottom:16px; padding:0;">
+            <li style="padding:5px 0; border-top:1px solid var(--line);">До 5 проектов</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">2 ГБ RAM на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">1 vCPU на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">Свой домен</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">Приоритетная поддержка</li>
+          </ul>
           <div class="provider-row">
             <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="pro" data-provider="yookassa">Картой</button>
             <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="pro" data-provider="cryptomus">Криптой</button>
@@ -294,7 +314,15 @@
         </div>
         <div class="plan-card">
           <h3>Business</h3>
-          <div class="price">2 990₽<span>/мес</span></div>
+          <div class="price">1 990₽<span>/мес</span></div>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Для нескольких продуктов</p>
+          <ul style="list-style:none; font-size:12.5px; color:var(--ink); margin-bottom:16px; padding:0;">
+            <li style="padding:5px 0; border-top:1px solid var(--line);">Без лимита проектов</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">8 ГБ RAM на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">2 vCPU на проект</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">SLA 99.9%</li>
+            <li style="padding:5px 0; border-top:1px solid var(--line);">Персональный контакт</li>
+          </ul>
           <div class="provider-row">
             <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="business" data-provider="yookassa">Картой</button>
             <button class="btn btn-ghost btn-sm subscribe-btn" data-plan="business" data-provider="cryptomus">Криптой</button>
