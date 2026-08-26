@@ -1,12 +1,19 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 class ProjectCreate(BaseModel):
     slug: str = Field(..., pattern=r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", description="используется как поддомен")
-    repo_url: str
+    repo_url: str | None = None
+    repo_full_name: str | None = None  # "owner/repo" — set when picked from the GitHub repo list instead of typed
     branch: str = "main"
     kind: str = "backend"  # site | bot | backend
     env: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _require_one_repo_source(self):
+        if not self.repo_url and not self.repo_full_name:
+            raise ValueError("Укажи repo_url или repo_full_name")
+        return self
 
 
 class ProjectOut(BaseModel):
@@ -16,6 +23,7 @@ class ProjectOut(BaseModel):
     branch: str
     kind: str
     webhook_secret: str
+    webhook_auto_configured: bool
     url: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -35,8 +43,17 @@ class UserOut(BaseModel):
     id: str
     email: str
     plan: str
+    github_connected: bool
+    github_username: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GithubRepoOut(BaseModel):
+    name: str
+    full_name: str
+    default_branch: str
+    private: bool
 
 
 class TokenOut(BaseModel):

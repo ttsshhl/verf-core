@@ -231,6 +231,13 @@
     <div class="panel active" id="panel-projects">
       <div class="new-project-form">
         <div class="section-title" style="margin-bottom:14px; font-size:16px;">Новый проект</div>
+
+        <div id="github-status" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:#fff;">
+          <span id="github-status-text" style="font-size:13px; color:var(--ink-soft);">Проверка подключения GitHub…</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="github-connect-btn" style="display:none;">Подключить GitHub</button>
+          <button type="button" class="icon-btn" id="github-disconnect-btn" style="display:none;">отключить</button>
+        </div>
+
         <form id="new-project-form">
           <div class="form-row">
             <div class="field-sm">
@@ -247,9 +254,15 @@
             </div>
           </div>
           <div class="form-row full">
-            <div class="field-sm">
+            <div class="field-sm" id="repo-picker-select-wrap" style="display:none;">
+              <label for="np-repo-select">Репозиторий</label>
+              <select id="np-repo-select"></select>
+              <div style="margin-top:6px;"><a href="#" id="switch-to-manual" style="font-size:12px; color:var(--ink-soft); text-decoration:underline;">указать URL вручную</a></div>
+            </div>
+            <div class="field-sm" id="repo-picker-manual-wrap">
               <label for="np-repo">URL репозитория (GitHub)</label>
-              <input type="text" id="np-repo" placeholder="https://github.com/you/project.git" required>
+              <input type="text" id="np-repo" placeholder="https://github.com/you/project.git">
+              <div style="margin-top:6px; display:none;" id="switch-to-select-wrap"><a href="#" id="switch-to-select" style="font-size:12px; color:var(--ink-soft); text-decoration:underline;">выбрать из GitHub</a></div>
             </div>
           </div>
           <div class="form-row">
@@ -402,6 +415,11 @@ function renderProjects(projects){
         </div>
       </div>
       <div class="project-detail">
+        ${p.webhook_auto_configured ? `
+        <div class="webhook-box" style="background:var(--live); color:#fff;">
+          <span class="lbl" style="color:rgba(255,255,255,0.7);">Вебхук</span>
+          Настроен автоматически через GitHub — ничего делать не нужно
+        </div>` : `
         <div class="webhook-box">
           <span class="lbl">Payload URL для GitHub-вебхука</span>
           ${API}/webhook/github/${p.slug}
@@ -409,7 +427,7 @@ function renderProjects(projects){
         <div class="webhook-box">
           <span class="lbl">Webhook secret</span>
           ${p.webhook_secret}
-        </div>
+        </div>`}
         <div class="deploys" data-slug="${p.slug}">
           <span style="font-size:12.5px; color:var(--ink-soft);">Загрузка истории деплоев…</span>
         </div>
@@ -473,18 +491,33 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
 document.getElementById('new-project-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('np-submit');
+  const usingSelect = document.getElementById('repo-picker-select-wrap').style.display !== 'none';
+  const repoField = usingSelect
+    ? {repo_full_name: document.getElementById('np-repo-select').value}
+    : {repo_url: document.getElementById('np-repo').value.trim()};
+
+  if(usingSelect && !repoField.repo_full_name){
+    showToast('Выбери репозиторий из списка', true);
+    return;
+  }
+  if(!usingSelect && !repoField.repo_url){
+    showToast('Укажи URL репозитория', true);
+    return;
+  }
+
   btn.disabled = true;
   try{
-    await api('/me/projects', {
+    const project = await api('/me/projects', {
       method: 'POST',
-      body: JSON.stringify({
+      body: JSON.stringify(Object.assign({
         slug: document.getElementById('np-slug').value.trim(),
-        repo_url: document.getElementById('np-repo').value.trim(),
         branch: document.getElementById('np-branch').value.trim() || 'main',
         kind: document.getElementById('np-kind').value,
-      }),
+      }, repoField)),
     });
-    showToast('Проект создан — настрой вебхук на GitHub, детали в карточке ниже');
+    showToast(project.webhook_auto_configured
+      ? 'Проект создан — вебхук настроен автоматически, можно пушить'
+      : 'Проект создан — настрой вебхук на GitHub, детали в карточке ниже');
     document.getElementById('new-project-form').reset();
     document.getElementById('np-branch').value = 'main';
     loadProjects();
@@ -492,6 +525,92 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
     showToast(err.message, true);
   }finally{
     btn.disabled = false;
+  }
+});
+
+// ---------- GitHub connect ----------
+
+function slugify(name){
+  return name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'project';
+}
+
+async function refreshGithubStatus(){
+  const statusText = document.getElementById('github-status-text');
+  const connectBtn = document.getElementById('github-connect-btn');
+  const disconnectBtn = document.getElementById('github-disconnect-btn');
+  const selectWrap = document.getElementById('repo-picker-select-wrap');
+  const manualWrap = document.getElementById('repo-picker-manual-wrap');
+  const switchToSelectWrap = document.getElementById('switch-to-select-wrap');
+
+  if(currentUser.github_connected){
+    statusText.textContent = `GitHub: @${currentUser.github_username}`;
+    connectBtn.style.display = 'none';
+    disconnectBtn.style.display = 'inline-flex';
+    switchToSelectWrap.style.display = 'block';
+    selectWrap.style.display = 'block';
+    manualWrap.style.display = 'none';
+    try{
+      const repos = await api('/me/github/repos');
+      const select = document.getElementById('np-repo-select');
+      select.innerHTML = repos.map(r =>
+        `<option value="${r.full_name}" data-branch="${r.default_branch}">${r.private ? '🔒 ' : ''}${r.full_name}</option>`
+      ).join('');
+      if(repos.length){
+        const opt = select.options[0];
+        document.getElementById('np-branch').value = opt.dataset.branch;
+        if(!document.getElementById('np-slug').value) document.getElementById('np-slug').value = slugify(opt.value.split('/')[1]);
+      }
+    }catch(err){
+      showToast(err.message, true);
+    }
+  }else{
+    statusText.textContent = 'GitHub не подключён — можно указать URL репозитория вручную';
+    connectBtn.style.display = 'inline-flex';
+    disconnectBtn.style.display = 'none';
+    selectWrap.style.display = 'none';
+    manualWrap.style.display = 'block';
+    switchToSelectWrap.style.display = 'none';
+  }
+}
+
+document.getElementById('np-repo-select').addEventListener('change', (e) => {
+  const opt = e.target.options[e.target.selectedIndex];
+  document.getElementById('np-branch').value = opt.dataset.branch;
+  if(!document.getElementById('np-slug').value) document.getElementById('np-slug').value = slugify(opt.value.split('/')[1]);
+});
+
+document.getElementById('switch-to-manual').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('repo-picker-select-wrap').style.display = 'none';
+  document.getElementById('repo-picker-manual-wrap').style.display = 'block';
+  document.getElementById('switch-to-select-wrap').style.display = 'block';
+});
+
+document.getElementById('switch-to-select').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('repo-picker-select-wrap').style.display = 'block';
+  document.getElementById('repo-picker-manual-wrap').style.display = 'none';
+});
+
+document.getElementById('github-connect-btn').addEventListener('click', async () => {
+  try{
+    const {nonce} = await api('/auth/github/prepare-connect', {method: 'POST'});
+    window.location.href = `${API}/auth/github/start?nonce=${encodeURIComponent(nonce)}`;
+  }catch(err){
+    showToast(err.message, true);
+  }
+});
+
+document.getElementById('github-disconnect-btn').addEventListener('click', async () => {
+  if(!confirm('Отключить GitHub? Автосоздание вебхуков для новых проектов перестанет работать.')) return;
+  try{
+    await api('/me/github', {method: 'DELETE'});
+    currentUser.github_connected = false;
+    currentUser.github_username = null;
+    refreshGithubStatus();
+    showToast('GitHub отключён');
+  }catch(err){
+    showToast(err.message, true);
   }
 });
 
@@ -525,6 +644,12 @@ async function enterApp(){
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     loadProjects();
+    refreshGithubStatus();
+
+    if(new URLSearchParams(window.location.search).get('github') === 'connected'){
+      showToast('GitHub подключён!');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
 
     if(intendedPlan && PLAN_LABELS[intendedPlan] && currentUser.plan !== intendedPlan){
       document.querySelector('.tab-btn[data-panel="billing"]').click();

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 def utcnow():
     return datetime.now(timezone.utc)
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Text, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, Text, Integer, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -49,10 +49,16 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     plan = Column(String, default="free")  # "free" | "pro" | "business" — mirrors latest active subscription
+    github_token = Column(String, nullable=True)  # OAuth access token, only set once the user connects GitHub
+    github_username = Column(String, nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     projects = relationship("Project", back_populates="owner")
     subscriptions = relationship("Subscription", back_populates="user", order_by="Subscription.created_at.desc()")
+
+    @property
+    def github_connected(self) -> bool:
+        return bool(self.github_token)
 
 
 class Subscription(Base):
@@ -82,6 +88,7 @@ class Project(Base):
     branch = Column(String, default="main")
     kind = Column(Enum(ProjectKind), default=ProjectKind.backend)
     webhook_secret = Column(String, default=gen_secret)  # per-project secret used to verify GitHub payloads
+    webhook_auto_configured = Column(Boolean, default=False)  # True if VERF created the GitHub webhook itself via the API
     env_json = Column(Text, default="{}")  # serialized dict of env vars injected into the container
     created_at = Column(DateTime, default=utcnow)
 

@@ -51,3 +51,11 @@ CRYPTOMUS_CALLBACK_URL = os.getenv("VERF_CRYPTOMUS_CALLBACK_URL", f"https://api.
 # This is a fixed approximation, not a live exchange rate — adjust as the rate moves,
 # or wire up a live-rate lookup later if the spread starts to matter.
 PLAN_PRICES_USD = {"pro": 12, "business": 35}
+
+# --- GitHub OAuth (connect account, list repos, auto-create webhooks) ---
+# Create an OAuth App at https://github.com/settings/developers — Authorization
+# callback URL must exactly match GITHUB_REDIRECT_URI below.
+GITHUB_CLIENT_ID = os.getenv("VERF_GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("VERF_GITHUB_CLIENT_SECRET", "")
+GITHUB_REDIRECT_URI = os.getenv("VERF_GITHUB_REDIRECT_URI", f"https://api.{DOMAIN_SUFFIX}/auth/github/callback")
+GITHUB_CONNECT_NONCE_TTL_SECONDS = 120

@@ -1,21 +1,22 @@
 import json
+import secrets
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app import auth, billing
-from app.config import ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS
+from app import auth, billing, github as gh
+from app.config import ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS
 from app.db import get_db, init_db
 from app.models import Project, Deployment, DeployStatus, User, Subscription, SubscriptionStatus
 from app.pipeline import run_deploy
 from app.schemas import (
     ProjectCreate, ProjectOut, DeploymentOut,
-    UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut,
+    UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut, GithubRepoOut,
 )
 from app.webhook import verify_signature, extract_push_info
 
@@ -35,6 +36,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Single-use nonces for starting the GitHub OAuth "connect" flow. A browser
+# full-page navigation can't carry an Authorization header, so the cabinet
+# first fetches a nonce via a normal authenticated request, then navigates
+# to /auth/github/start?nonce=... — keeping the user's JWT out of the URL
+# (and therefore out of server access logs). In-memory is fine for MVP:
+# short TTL, single verf-core process.
+_GITHUB_CONNECT_NONCES: dict[str, tuple[str, float]] = {}
 
 
 def require_admin(x_api_key: str | None = Header(default=None)):
@@ -91,6 +100,78 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
+# ---------- GitHub OAuth (connect account, list repos) ----------
+
+@app.post("/auth/github/prepare-connect")
+def prepare_github_connect(user: User = Depends(get_current_user)):
+    nonce = secrets.token_urlsafe(24)
+    _GITHUB_CONNECT_NONCES[nonce] = (user.id, time.time() + GITHUB_CONNECT_NONCE_TTL_SECONDS)
+    return {"nonce": nonce}
+
+
+@app.get("/auth/github/start")
+def start_github_connect(nonce: str):
+    entry = _GITHUB_CONNECT_NONCES.pop(nonce, None)
+    if not entry or entry[1] < time.time():
+        raise HTTPException(status_code=400, detail="Ссылка для подключения GitHub устарела — начни заново")
+    user_id, _ = entry
+    try:
+        state = auth.create_github_connect_state(user_id)
+        url = gh.authorize_url(state)
+    except gh.GithubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return RedirectResponse(url)
+
+
+@app.get("/auth/github/callback")
+def github_connect_callback(code: str, state: str, db: Session = Depends(get_db)):
+    try:
+        user_id = auth.decode_github_connect_state(state)
+    except auth.InvalidToken:
+        raise HTTPException(status_code=400, detail="Недействительное состояние OAuth — начни подключение заново")
+
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    try:
+        token = gh.exchange_code(code)
+        username = gh.fetch_username(token)
+    except gh.GithubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    user.github_token = token
+    user.github_username = username
+    db.commit()
+
+    return RedirectResponse(f"https://cabinet.{DOMAIN_SUFFIX}?github=connected")
+
+
+@app.delete("/me/github")
+def disconnect_github(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user.github_token = None
+    user.github_username = None
+    db.commit()
+    return {"disconnected": True}
+
+
+@app.get("/me/github/repos", response_model=list[GithubRepoOut])
+def list_my_github_repos(user: User = Depends(get_current_user)):
+    if not user.github_token:
+        raise HTTPException(status_code=400, detail="GitHub не подключён — сначала подключи аккаунт")
+    try:
+        repos = gh.list_repos(user.github_token)
+    except gh.GithubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return [
+        GithubRepoOut(
+            name=r["name"], full_name=r["full_name"],
+            default_branch=r.get("default_branch", "main"), private=r.get("private", False),
+        )
+        for r in repos
+    ]
+
+
 # ---------- Personal cabinet: self-service projects ----------
 
 @app.post("/me/projects", response_model=ProjectOut)
@@ -107,13 +188,28 @@ def create_my_project(payload: ProjectCreate, user: User = Depends(get_current_u
                 detail=f"Лимит тарифа «{user.plan}» — {limit} проект(ов). Оформи более высокий тариф в /billing/subscribe.",
             )
 
+    repo_url = payload.repo_url
+    if payload.repo_full_name:
+        repo_url = f"https://github.com/{payload.repo_full_name}.git"
+
     project = Project(
-        owner_id=user.id, slug=payload.slug, repo_url=payload.repo_url, branch=payload.branch,
+        owner_id=user.id, slug=payload.slug, repo_url=repo_url, branch=payload.branch,
         kind=payload.kind, env_json=json.dumps(payload.env),
     )
     db.add(project)
     db.commit()
     db.refresh(project)
+
+    # Best-effort: if the project came from the GitHub picker and the user has
+    # a connected account, create the push webhook for them automatically.
+    # Failure here is never fatal to project creation — the user can still
+    # fall back to configuring the webhook by hand with the secret below.
+    if payload.repo_full_name and user.github_token:
+        payload_url = f"https://api.{DOMAIN_SUFFIX}/webhook/github/{project.slug}"
+        if gh.create_webhook(user.github_token, payload.repo_full_name, payload_url, project.webhook_secret):
+            project.webhook_auto_configured = True
+            db.commit()
+
     return _to_project_out(project)
 
 
@@ -253,9 +349,11 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
     if db.query(Project).filter_by(slug=payload.slug).first():
         raise HTTPException(status_code=409, detail="Проект с таким slug уже существует")
 
+    repo_url = payload.repo_url or f"https://github.com/{payload.repo_full_name}.git"
+
     project = Project(
         slug=payload.slug,
-        repo_url=payload.repo_url,
+        repo_url=repo_url,
         branch=payload.branch,
         kind=payload.kind,
         env_json=json.dumps(payload.env),
@@ -333,7 +431,8 @@ async def github_webhook(
 def _to_project_out(p: Project) -> ProjectOut:
     return ProjectOut(
         id=p.id, slug=p.slug, repo_url=p.repo_url, branch=p.branch, kind=p.kind,
-        webhook_secret=p.webhook_secret, url=f"https://{p.slug}.{DOMAIN_SUFFIX}",
+        webhook_secret=p.webhook_secret, webhook_auto_configured=p.webhook_auto_configured,
+        url=f"https://{p.slug}.{DOMAIN_SUFFIX}",
     )
 
 
