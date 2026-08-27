@@ -44,9 +44,13 @@ def _auth():
     return (YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY)
 
 
-def create_payment(plan: str, subscription_id: str) -> dict:
+def create_payment(plan: str, subscription_id: str, payment_method_type: str | None = None) -> dict:
     """Creates a payment in ЮKassa and returns its data, including the
     confirmation URL the user is redirected to for entering card details.
+
+    `payment_method_type`, if given (e.g. "sbp"), pre-selects that payment
+    method so the user lands directly on it instead of ЮKassa's generic
+    method-picker screen — used for the cabinet's dedicated "СБП" button.
     """
     if plan not in PLAN_PRICES_RUB:
         raise BillingError(f"Неизвестный тариф: {plan}")
@@ -54,17 +58,21 @@ def create_payment(plan: str, subscription_id: str) -> dict:
     amount = PLAN_PRICES_RUB[plan]
     idempotence_key = str(uuid.uuid4())
 
+    body = {
+        "amount": {"value": f"{amount}.00", "currency": "RUB"},
+        "confirmation": {"type": "redirect", "return_url": YOOKASSA_RETURN_URL},
+        "capture": True,
+        "description": f"VERF — тариф {plan} (подписка {subscription_id})",
+        "metadata": {"subscription_id": subscription_id, "plan": plan},
+    }
+    if payment_method_type:
+        body["payment_method_data"] = {"type": payment_method_type}
+
     response = requests.post(
         f"{YOOKASSA_API}/payments",
         auth=_auth(),
         headers={"Idempotence-Key": idempotence_key},
-        json={
-            "amount": {"value": f"{amount}.00", "currency": "RUB"},
-            "confirmation": {"type": "redirect", "return_url": YOOKASSA_RETURN_URL},
-            "capture": True,
-            "description": f"VERF — тариф {plan} (подписка {subscription_id})",
-            "metadata": {"subscription_id": subscription_id, "plan": plan},
-        },
+        json=body,
         timeout=15,
     )
     if response.status_code >= 300:

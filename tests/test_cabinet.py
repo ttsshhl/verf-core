@@ -220,6 +220,79 @@ def test_subscribe_invalid_plan_rejected(client):
     assert r.status_code == 400
 
 
+def test_subscribe_sbp_creates_payment_with_preselected_method(client, monkeypatch):
+    from app import billing
+
+    captured = {}
+
+    def fake_create_payment(plan, sub_id, payment_method_type=None):
+        captured["payment_method_type"] = payment_method_type
+        return {
+            "id": "yk_sbp_payment_1",
+            "confirmation": {"confirmation_url": "https://yookassa.ru/pay/yk_sbp_payment_1"},
+        }
+
+    monkeypatch.setattr(billing, "create_payment", fake_create_payment)
+
+    token = _register(client, email="sbp-buyer@example.com")
+    r = client.post(
+        "/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro", "provider": "sbp"},
+    )
+    assert r.status_code == 200, r.text
+    assert captured["payment_method_type"] == "sbp"
+    assert r.json()["confirmation_url"] == "https://yookassa.ru/pay/yk_sbp_payment_1"
+
+
+def test_subscribe_sbp_stores_yookassa_as_provider_for_webhook_matching(client, monkeypatch):
+    """SBP is still the ЮKassa gateway under the hood — the subscription
+    record must say provider="yookassa" so /webhook/yookassa's lookup
+    (which filters by provider) actually finds it."""
+    from app import billing
+    from app.models import Subscription
+
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id, payment_method_type=None: {
+        "id": "yk_sbp_payment_2", "confirmation": {"confirmation_url": "https://yookassa.ru/pay/x"},
+    })
+
+    token = _register(client, email="sbp-provider-check@example.com")
+    client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro", "provider": "sbp"})
+
+    db = client.SessionLocal()
+    sub = db.query(Subscription).filter_by(external_payment_id="yk_sbp_payment_2").first()
+    assert sub.provider == "yookassa"
+    db.close()
+
+
+def test_webhook_activates_sbp_originated_subscription(client, monkeypatch):
+    from app import billing
+    from app.models import User, Subscription, SubscriptionStatus
+
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id, payment_method_type=None: {
+        "id": "yk_sbp_activate", "confirmation": {"confirmation_url": "https://yookassa.ru/pay/x"},
+    })
+    token = _register(client, email="sbp-activate@example.com")
+    client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "business", "provider": "sbp"})
+
+    monkeypatch.setattr(billing, "fetch_payment", lambda payment_id: {"id": payment_id, "status": "succeeded"})
+    r = client.post("/webhook/yookassa", json={"object": {"id": "yk_sbp_activate", "status": "succeeded"}})
+    assert r.status_code == 200
+
+    db = client.SessionLocal()
+    user = db.query(User).filter_by(email="sbp-activate@example.com").first()
+    assert user.plan == "business"
+    sub = db.query(Subscription).filter_by(external_payment_id="yk_sbp_activate").first()
+    assert sub.status == SubscriptionStatus.active
+    db.close()
+
+
+def test_subscribe_rejects_unknown_provider(client):
+    token = _register(client)
+    r = client.post(
+        "/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro", "provider": "paypal"},
+    )
+    assert r.status_code == 400
+
+
 def test_subscribe_billing_error_cleans_up_pending_subscription(client, monkeypatch):
     from app import billing
     from app.models import Subscription

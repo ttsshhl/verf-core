@@ -390,12 +390,17 @@ def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user),
     from app.config import PLAN_PRICES_RUB
     if payload.plan not in PLAN_PRICES_RUB:
         raise HTTPException(status_code=400, detail="Тариф должен быть 'pro' или 'business'")
-    if payload.provider not in ("yookassa", "cryptomus"):
-        raise HTTPException(status_code=400, detail="provider должен быть 'yookassa' или 'cryptomus'")
+    if payload.provider not in ("yookassa", "sbp", "cryptomus"):
+        raise HTTPException(status_code=400, detail="provider должен быть 'yookassa', 'sbp' или 'cryptomus'")
+
+    # "sbp" is still the ЮKassa gateway underneath (same account, same webhook) —
+    # it only pre-selects SBP as the payment method instead of card. Stored as
+    # "yookassa" so /webhook/yookassa's provider filter still matches it.
+    gateway = "cryptomus" if payload.provider == "cryptomus" else "yookassa"
 
     subscription = Subscription(
         user_id=user.id, plan=payload.plan, status=SubscriptionStatus.pending,
-        provider=payload.provider, amount_rub=PLAN_PRICES_RUB[payload.plan],
+        provider=gateway, amount_rub=PLAN_PRICES_RUB[payload.plan],
     )
     db.add(subscription)
     db.commit()
@@ -404,6 +409,10 @@ def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user),
     try:
         if payload.provider == "yookassa":
             payment = billing.create_payment(payload.plan, subscription.id)
+            confirmation_url = payment.get("confirmation", {}).get("confirmation_url")
+            external_id = payment["id"]
+        elif payload.provider == "sbp":
+            payment = billing.create_payment(payload.plan, subscription.id, payment_method_type="sbp")
             confirmation_url = payment.get("confirmation", {}).get("confirmation_url")
             external_id = payment["id"]
         else:
