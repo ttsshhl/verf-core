@@ -21,9 +21,15 @@ class ProjectOut(BaseModel):
     kind: str
     webhook_secret: str
     webhook_auto_configured: bool
+    custom_domain: str | None
     url: str
+    custom_domain_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DomainRequest(BaseModel):
+    domain: str = Field(..., min_length=3, max_length=253)
 
 
 class UserCreate(BaseModel):

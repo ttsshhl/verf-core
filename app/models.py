@@ -89,6 +89,7 @@ class Project(Base):
     kind = Column(Enum(ProjectKind), default=ProjectKind.backend)
     webhook_secret = Column(String, default=gen_secret)  # per-project secret used to verify GitHub payloads
     webhook_auto_configured = Column(Boolean, default=False)  # True if VERF created the GitHub webhook itself via the API
+    custom_domain = Column(String, nullable=True, unique=True)  # e.g. "example.com" — user's own domain, CNAME'd to {slug}.DOMAIN_SUFFIX
     env_json = Column(Text, default="{}")  # serialized dict of env vars injected into the container
     created_at = Column(DateTime, default=utcnow)
 

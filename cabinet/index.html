@@ -488,6 +488,22 @@ function renderProjects(projects){
           <span class="lbl">Webhook secret</span>
           ${p.webhook_secret}
         </div>`}
+
+        <div class="domain-section" data-slug="${p.slug}" style="margin-bottom:12px;">
+          ${p.custom_domain ? `
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:#fff;">
+            <span style="font-size:12.5px;">🌐 <a href="${p.custom_domain_url}" target="_blank" rel="noopener" style="color:var(--brass);">${p.custom_domain}</a></span>
+            <button class="icon-btn domain-remove-btn" style="color:var(--danger); border-color:var(--danger);">отвязать</button>
+          </div>
+          ` : `
+          <div style="display:flex; gap:8px;">
+            <input type="text" class="domain-input" placeholder="example.com" style="flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-size:12.5px;">
+            <button class="btn btn-ghost btn-sm domain-add-btn">Привязать домен</button>
+          </div>
+          <div style="margin-top:6px; font-size:11px; color:var(--ink-soft);">Направь свой домен через CNAME-запись на <span class="mono">${p.url.replace('https://','')}</span></div>
+          `}
+        </div>
+
         <div class="deploys" data-slug="${p.slug}">
           <span style="font-size:12.5px; color:var(--ink-soft);">Загрузка истории деплоев…</span>
         </div>
@@ -541,6 +557,33 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
     try{
       await api(`/me/projects/${slug}`, {method: 'DELETE'});
       showToast('Проект удалён');
+      loadProjects();
+    }catch(err){
+      showToast(err.message, true);
+    }
+  }
+
+  if(e.target.classList.contains('domain-add-btn')){
+    const input = card.querySelector('.domain-input');
+    const domain = input.value.trim();
+    if(!domain){ showToast('Введи домен', true); return; }
+    e.target.disabled = true;
+    try{
+      await api(`/me/projects/${slug}/domain`, {method: 'POST', body: JSON.stringify({domain})});
+      showToast('Домен привязан — сертификат может выпускаться до 15 минут при первом использовании');
+      loadProjects();
+    }catch(err){
+      showToast(err.message, true);
+    }finally{
+      e.target.disabled = false;
+    }
+  }
+
+  if(e.target.classList.contains('domain-remove-btn')){
+    if(!confirm('Отвязать домен от проекта?')) return;
+    try{
+      await api(`/me/projects/${slug}/domain`, {method: 'DELETE'});
+      showToast('Домен отвязан');
       loadProjects();
     }catch(err){
       showToast(err.message, true);

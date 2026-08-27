@@ -51,10 +51,10 @@ def build_image(slug: str, deployment_id: str) -> str:
     return image_tag
 
 
-def _labels(slug: str) -> dict:
+def _labels(slug: str, internal_port: int, custom_domain: str | None = None) -> dict:
     router = f"verf-{slug}"
     host_rule = f"Host(`{slug}.{DOMAIN_SUFFIX}`)"
-    return {
+    labels = {
         "traefik.enable": "true",
         f"traefik.http.routers.{router}.rule": host_rule,
         f"traefik.http.routers.{router}.entrypoints": TRAEFIK_ENTRYPOINT,
@@ -66,12 +66,37 @@ def _labels(slug: str) -> dict:
         # the same cached wildcard cert instantly instead of repeating it.
         f"traefik.http.routers.{router}.tls.domains[0].main": f"*.{DOMAIN_SUFFIX}",
         f"traefik.http.routers.{router}.tls.domains[0].sans": DOMAIN_SUFFIX,
+        # Explicit service (port) — needed once a second router (custom
+        # domain, below) has to reference this same backend by name; Traefik's
+        # implicit single-service auto-detection isn't reliably referenceable
+        # across multiple routers on one container.
+        f"traefik.http.services.{router}.loadbalancer.server.port": str(internal_port),
     }
+
+    if custom_domain:
+        # A user's own domain needs its own router + its own certificate —
+        # DNS-01 (the "le" resolver above) is only possible for domains we
+        # control DNS for (verfdeploy.ru, via reg.ru's API). For a domain a
+        # user owns, we have no registrar access, so this router uses
+        # HTTP-01 instead (the "http" resolver, configured separately in
+        # docker-compose) — it self-verifies ownership implicitly: the
+        # challenge can only succeed if the domain's DNS genuinely points
+        # here, so there's no separate "verify ownership" step to build.
+        custom_router = f"{router}-custom"
+        labels.update({
+            f"traefik.http.routers.{custom_router}.rule": f"Host(`{custom_domain}`)",
+            f"traefik.http.routers.{custom_router}.entrypoints": TRAEFIK_ENTRYPOINT,
+            f"traefik.http.routers.{custom_router}.tls.certresolver": "http",
+            f"traefik.http.routers.{custom_router}.service": router,
+        })
+
+    return labels
 
 
 def run_container(
     slug: str, image_tag: str, internal_port: int, env: dict | None = None,
     mem_limit: str = DEFAULT_MEM_LIMIT, cpu_quota: int = DEFAULT_CPU_QUOTA,
+    custom_domain: str | None = None,
 ):
     """Start the new container, then stop+remove any previous one for this slug.
 
@@ -82,6 +107,10 @@ def run_container(
     owner's plan (app.config.PLAN_MEM_LIMITS / PLAN_CPU_QUOTAS) — this
     function just applies whatever it's given, defaulting to the free tier
     for callers that don't resolve a plan (e.g. admin-created projects).
+
+    `custom_domain`, if set, adds a second Traefik router (HTTP-01 cert)
+    routing the user's own domain to this same container alongside the
+    normal {slug}.DOMAIN_SUFFIX subdomain.
     """
     client = _client()
     ensure_network()
@@ -103,7 +132,7 @@ def run_container(
             detach=True,
             network=DOCKER_NETWORK,
             environment=env or {},
-            labels=_labels(slug),
+            labels=_labels(slug, internal_port, custom_domain),
             mem_limit=mem_limit,
             cpu_period=100_000,
             cpu_quota=cpu_quota,

@@ -83,12 +83,15 @@ def _run_pipeline(db: Session, project: Project, deployment: Deployment, get_sou
 
         container_id = deployer.run_container(
             project.slug, image_tag, profile.internal_port, env,
-            mem_limit=mem_limit, cpu_quota=cpu_quota,
+            mem_limit=mem_limit, cpu_quota=cpu_quota, custom_domain=project.custom_domain,
         )
         deployment.container_id = container_id
         deployment.port = profile.internal_port
         log(f"→ Контейнер запущен: {container_id[:12]} (тариф «{owner_plan}»: {mem_limit} RAM)")
-        log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
+        if project.custom_domain:
+            log(f"→ Домен: {project.custom_domain} (и https://{project.slug}.{{DOMAIN}})")
+        else:
+            log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
 
         set_status(DeployStatus.running)
 

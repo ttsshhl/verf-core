@@ -42,6 +42,14 @@ services:
       - "--certificatesresolvers.le.acme.dnschallenge.provider=regru"
       - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      # Separate resolver for users' own custom domains — we don't have
+      # registrar API access for arbitrary domains, so DNS-01 (above) isn't
+      # possible there. HTTP-01 works for any domain whose DNS genuinely
+      # points here, which is exactly the ownership check we need anyway.
+      - "--certificatesresolvers.http.acme.httpchallenge=true"
+      - "--certificatesresolvers.http.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.http.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.http.acme.storage=/letsencrypt/acme-http.json"
     ports:
       - "80:80"
       - "443:443"

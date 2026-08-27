@@ -73,7 +73,7 @@ def _push_and_capture_run_container_call(client, monkeypatch, fake_upstream, tok
 
     captured = {}
 
-    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None):
+    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None, custom_domain=None):
         captured["mem_limit"] = mem_limit
         captured["cpu_quota"] = cpu_quota
         return "fake-container-id"
@@ -142,7 +142,7 @@ def test_admin_created_project_with_no_owner_gets_free_tier_default(client, monk
 
     captured = {}
 
-    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None):
+    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None, custom_domain=None):
         captured["mem_limit"] = mem_limit
         captured["cpu_quota"] = cpu_quota
         return "fake-container-id"

@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 import time
 import uuid
@@ -22,6 +23,7 @@ from app.pipeline import run_deploy, run_deploy_from_upload
 from app.schemas import (
     ProjectCreate, ProjectOut, DeploymentOut,
     UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut, GithubRepoOut,
+    DomainRequest,
 )
 from app.webhook import verify_signature, extract_push_info
 
@@ -281,6 +283,72 @@ def get_my_deployment(deployment_id: str, user: User = Depends(get_current_user)
     return _to_deployment_out(deployment)
 
 
+@app.post("/me/projects/{slug}/domain", response_model=ProjectOut)
+def set_custom_domain(
+    slug: str, payload: DomainRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+
+    domain = _validate_domain(payload.domain)
+
+    existing = db.query(Project).filter(Project.custom_domain == domain, Project.id != project.id).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Этот домен уже привязан к другому проекту")
+
+    project.custom_domain = domain
+    db.commit()
+    _try_apply_domain_to_running_container(db, project)
+    db.refresh(project)
+    return _to_project_out(project)
+
+
+@app.delete("/me/projects/{slug}/domain", response_model=ProjectOut)
+def remove_custom_domain(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+
+    project.custom_domain = None
+    db.commit()
+    _try_apply_domain_to_running_container(db, project)
+    db.refresh(project)
+    return _to_project_out(project)
+
+
+def _try_apply_domain_to_running_container(db: Session, project: Project) -> None:
+    """Best-effort: if the project has a currently-running deployment,
+    recreate its container right away so the domain change (add/remove)
+    takes effect immediately instead of waiting for the next push. If
+    Docker isn't reachable or anything else goes wrong, the domain is still
+    saved in the database — it'll simply apply on the next real deploy.
+    """
+    latest_running = (
+        db.query(Deployment)
+        .filter_by(project_id=project.id, status=DeployStatus.running)
+        .order_by(Deployment.created_at.desc())
+        .first()
+    )
+    if not latest_running or not latest_running.image_tag:
+        return
+
+    from app import deployer
+    from app.config import PLAN_MEM_LIMITS, PLAN_CPU_QUOTAS, DEFAULT_MEM_LIMIT, DEFAULT_CPU_QUOTA
+    owner_plan = project.owner.plan if project.owner else "free"
+    mem_limit = PLAN_MEM_LIMITS.get(owner_plan, DEFAULT_MEM_LIMIT)
+    cpu_quota = PLAN_CPU_QUOTAS.get(owner_plan, DEFAULT_CPU_QUOTA)
+    env = json.loads(project.env_json or "{}")
+
+    try:
+        deployer.run_container(
+            project.slug, latest_running.image_tag, latest_running.port, env,
+            mem_limit=mem_limit, cpu_quota=cpu_quota, custom_domain=project.custom_domain,
+        )
+    except deployer.DeployError:
+        pass  # best-effort — domain is saved regardless, will apply on next real deploy
+
+
 @app.delete("/me/projects/{slug}")
 def delete_my_project(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
@@ -483,11 +551,28 @@ async def github_webhook(
     return {"deployment_id": deployment.id, "status": deployment.status}
 
 
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$")
+
+
+def _validate_domain(raw: str) -> str:
+    domain = raw.strip().lower().rstrip(".")
+    if domain == DOMAIN_SUFFIX or domain.endswith(f".{DOMAIN_SUFFIX}"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Нельзя привязать поддомен {DOMAIN_SUFFIX} этим способом — он уже твой по умолчанию",
+        )
+    if not _DOMAIN_RE.match(domain):
+        raise HTTPException(status_code=400, detail="Похоже, это не настоящий домен — например, example.com")
+    return domain
+
+
 def _to_project_out(p: Project) -> ProjectOut:
     return ProjectOut(
         id=p.id, slug=p.slug, repo_url=p.repo_url, branch=p.branch, kind=p.kind,
         webhook_secret=p.webhook_secret, webhook_auto_configured=p.webhook_auto_configured,
+        custom_domain=p.custom_domain,
         url=f"https://{p.slug}.{DOMAIN_SUFFIX}",
+        custom_domain_url=f"https://{p.custom_domain}" if p.custom_domain else None,
     )
 
 
