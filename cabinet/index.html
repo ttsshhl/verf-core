@@ -392,7 +392,7 @@ let token = localStorage.getItem('verf_token');
 let currentUser = null;
 let serverInfo = {ip: null, domain_suffix: null};
 
-const PLAN_LABELS = {pro: 'Pro, 990₽/мес', business: 'Business, 2 990₽/мес'};
+const PLAN_LABELS = {pro: 'Pro, 490₽/мес', business: 'Business, 1 990₽/мес'};
 const intendedPlan = new URLSearchParams(window.location.search).get('plan');
 if(intendedPlan && PLAN_LABELS[intendedPlan]){
   const hint = document.getElementById('plan-hint');
