@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 
 COPY requirements.txt .
 COPY vendor ./vendor
-RUN pip install --no-cache-dir ./vendor/*.whl \
-    && pip install --no-cache-dir -i https://mirror.yandex.ru/pypi/web/simple -r requirements.txt
+RUN pip install --no-cache-dir --no-index --find-links ./vendor -r requirements.txt
 
 COPY app ./app
 
