@@ -59,6 +59,13 @@ def _labels(slug: str) -> dict:
         f"traefik.http.routers.{router}.rule": host_rule,
         f"traefik.http.routers.{router}.entrypoints": TRAEFIK_ENTRYPOINT,
         f"traefik.http.routers.{router}.tls.certresolver": TRAEFIK_CERTRESOLVER,
+        # Request a *wildcard* cert (*.verfdeploy.ru) instead of one scoped to
+        # this exact subdomain. Traefik caches ACME certs by domain set, so
+        # the first-ever project deploy pays the ~5-15min reg.ru DNS-01
+        # propagation wait ONCE — every subsequent project (any slug) reuses
+        # the same cached wildcard cert instantly instead of repeating it.
+        f"traefik.http.routers.{router}.tls.domains[0].main": f"*.{DOMAIN_SUFFIX}",
+        f"traefik.http.routers.{router}.tls.domains[0].sans": DOMAIN_SUFFIX,
     }
 
 

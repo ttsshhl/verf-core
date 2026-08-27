@@ -283,8 +283,11 @@
           </div>
           <div class="form-row full" id="source-upload-wrap" style="display:none;">
             <div class="field-sm">
-              <label for="np-archive">ZIP-архив проекта</label>
-              <input type="file" id="np-archive" accept=".zip">
+              <label>ZIP-архив проекта</label>
+              <div id="np-archive-dropzone" style="margin-top:5px; border:2px dashed var(--line); border-radius:6px; padding:24px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;">
+                <div id="np-archive-dropzone-text" style="font-size:13px; color:var(--ink-soft);">Перетащи ZIP сюда или нажми, чтобы выбрать файл</div>
+              </div>
+              <input type="file" id="np-archive" accept=".zip" style="display:none;">
               <div style="margin-top:6px; font-size:11.5px; color:var(--ink-soft);">Проект задеплоится сразу после создания — прогресс смотри в карточке ниже.</div>
             </div>
           </div>
@@ -594,6 +597,8 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
     }
 
     document.getElementById('new-project-form').reset();
+    document.getElementById('np-archive-dropzone-text').textContent = 'Перетащи ZIP сюда или нажми, чтобы выбрать файл';
+    document.getElementById('np-archive-dropzone').style.borderColor = 'var(--line)';
     document.getElementById('np-branch').value = 'main';
     loadProjects();
   }catch(err){
@@ -618,6 +623,54 @@ function setSourceMode(mode){
 
 document.querySelectorAll('.source-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => setSourceMode(btn.dataset.source));
+});
+
+// ---------- ZIP dropzone (click-to-browse + drag-and-drop) ----------
+
+const archiveDropzone = document.getElementById('np-archive-dropzone');
+const archiveInput = document.getElementById('np-archive');
+const archiveDropzoneText = document.getElementById('np-archive-dropzone-text');
+
+function setArchiveFile(file){
+  if(!file) return;
+  if(!file.name.toLowerCase().endsWith('.zip')){
+    showToast('Нужен именно .zip файл', true);
+    return;
+  }
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  archiveInput.files = dt.files;
+  archiveDropzoneText.textContent = `📦 ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} МБ)`;
+  archiveDropzone.style.borderColor = 'var(--live)';
+}
+
+archiveDropzone.addEventListener('click', () => archiveInput.click());
+archiveInput.addEventListener('change', () => setArchiveFile(archiveInput.files[0]));
+
+['dragenter', 'dragover'].forEach(evt => {
+  archiveDropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveDropzone.style.borderColor = 'var(--accent)';
+    archiveDropzone.style.background = 'var(--accent-dim)';
+  });
+});
+
+['dragleave', 'dragend'].forEach(evt => {
+  archiveDropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveDropzone.style.background = 'transparent';
+    if(!archiveInput.files.length) archiveDropzone.style.borderColor = 'var(--line)';
+  });
+});
+
+archiveDropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  archiveDropzone.style.background = 'transparent';
+  const file = e.dataTransfer.files[0];
+  setArchiveFile(file);
 });
 
 // ---------- GitHub connect ----------
