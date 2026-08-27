@@ -3,7 +3,10 @@
 Everything in this module is pure filesystem/subprocess work — no Docker
 required — so it's fully testable without a Docker daemon.
 """
+import hashlib
+import shutil
 import subprocess
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,6 +37,56 @@ def clone_or_pull(slug: str, repo_url: str, branch: str = "main") -> str:
 
     sha = _run(["git", "rev-parse", "HEAD"], cwd=target).stdout.strip()
     return sha
+
+
+def replace_from_archive(slug: str, archive_path: Path) -> str:
+    """Replaces the project's working directory with the contents of a ZIP
+    archive — the CLI / cabinet-upload equivalent of clone_or_pull.
+
+    Returns a short pseudo-version identifier (sha256 of the archive bytes,
+    truncated) so deployments from uploads get a stable, comparable "commit_sha"
+    the same way git-based deploys do, even though there's no real commit.
+    """
+    if not zipfile.is_zipfile(archive_path):
+        raise BuildError("Загруженный файл не является ZIP-архивом")
+
+    target = project_dir(slug)
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(archive_path) as zf:
+            _safe_extract(zf, target)
+    except zipfile.BadZipFile as exc:
+        raise BuildError(f"Не удалось распаковать архив: {exc}")
+
+    # If the zip contained a single top-level folder (the common case when
+    # someone zips a project folder in Finder/Explorer), flatten it so
+    # project files end up directly in project_dir instead of nested one
+    # level deeper than every other deploy path expects.
+    entries = list(target.iterdir())
+    if len(entries) == 1 and entries[0].is_dir():
+        inner = entries[0]
+        for item in inner.iterdir():
+            shutil.move(str(item), str(target / item.name))
+        inner.rmdir()
+
+    digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    return f"upload-{digest[:12]}"
+
+
+def _safe_extract(zf: zipfile.ZipFile, target: Path) -> None:
+    """Extracts a zip while refusing entries that would escape `target`
+    (zip-slip protection) — the archive comes from a user upload, not a
+    trusted source, so path traversal must be blocked explicitly.
+    """
+    target_resolved = target.resolve()
+    for member in zf.namelist():
+        member_path = (target / member).resolve()
+        if not str(member_path).startswith(str(target_resolved)):
+            raise BuildError(f"Небезопасный путь в архиве: {member}")
+    zf.extractall(target)
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:

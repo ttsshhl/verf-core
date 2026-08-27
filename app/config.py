@@ -6,6 +6,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 WORKSPACE_DIR = Path(os.getenv("VERF_WORKSPACE_DIR", BASE_DIR / "workspace"))
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Max size for a ZIP archive uploaded via the CLI or the cabinet's drag-drop
+# deploy — generous enough for a real small project's source (not node_modules
+# or venv, which .verfignore/.gitignore-style filtering keeps out client-side).
+MAX_UPLOAD_SIZE_MB = int(os.getenv("VERF_MAX_UPLOAD_SIZE_MB", "50"))
+
 # --- Database ---
 DATABASE_URL = os.getenv("VERF_DATABASE_URL", f"sqlite:///{BASE_DIR / 'verf.db'}")
 

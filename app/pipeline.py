@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -9,10 +10,45 @@ from app.models import Deployment, DeployStatus, Project
 
 
 def run_deploy(db: Session, project: Project, deployment: Deployment) -> None:
-    """Runs the full pipeline synchronously, updating `deployment` as it goes.
+    """Git-based deploy path — triggered by the GitHub webhook.
 
     Called from a FastAPI BackgroundTask so the webhook responds to GitHub
     immediately (GitHub expects a fast response and retries/queues otherwise).
+    """
+    def get_source(log, set_status) -> str:
+        set_status(DeployStatus.cloning)
+        log(f"→ Клонирую {project.repo_url} ({project.branch})")
+        sha = builder.clone_or_pull(project.slug, project.repo_url, project.branch)
+        log(f"→ Коммит {sha[:8]}")
+        return sha
+
+    _run_pipeline(db, project, deployment, get_source)
+
+
+def run_deploy_from_upload(db: Session, project: Project, deployment: Deployment, archive_path: Path) -> None:
+    """CLI / cabinet-ZIP deploy path — no git involved at all.
+
+    Called from a FastAPI BackgroundTask the same way run_deploy is, so the
+    HTTP request that accepted the upload can return immediately and the
+    caller (CLI or cabinet) polls GET /me/deployments/{id} for progress.
+    """
+    def get_source(log, set_status) -> str:
+        set_status(DeployStatus.cloning)  # reusing the same status name — conceptually "fetching source"
+        log("→ Распаковываю загруженный архив")
+        sha = builder.replace_from_archive(project.slug, archive_path)
+        log(f"→ Версия: {sha}")
+        return sha
+
+    try:
+        _run_pipeline(db, project, deployment, get_source)
+    finally:
+        archive_path.unlink(missing_ok=True)  # temp upload — clean up regardless of outcome
+
+
+def _run_pipeline(db: Session, project: Project, deployment: Deployment, get_source) -> None:
+    """Shared build+run steps once the source code is on disk in
+    builder.project_dir(project.slug) — `get_source` is the only part that
+    differs between the git and upload entry points above.
     """
     def log(line: str) -> None:
         deployment.log = (deployment.log or "") + line + "\n"
@@ -23,11 +59,8 @@ def run_deploy(db: Session, project: Project, deployment: Deployment) -> None:
         db.commit()
 
     try:
-        set_status(DeployStatus.cloning)
-        log(f"→ Клонирую {project.repo_url} ({project.branch})")
-        sha = builder.clone_or_pull(project.slug, project.repo_url, project.branch)
+        sha = get_source(log, set_status)
         deployment.commit_sha = sha
-        log(f"→ Коммит {sha[:8]}")
 
         profile = builder.detect_profile(project.slug)
         log(f"→ Тип проекта: {profile.kind}")

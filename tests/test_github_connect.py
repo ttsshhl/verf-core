@@ -314,10 +314,13 @@ def test_create_project_without_github_connected_skips_auto_webhook(client):
     assert r.json()["webhook_auto_configured"] is False
 
 
-def test_create_project_requires_repo_url_or_full_name(client):
+def test_create_project_without_repo_source_is_valid(client):
+    """A project with no repo_url and no repo_full_name is legitimate now —
+    it's a CLI/ZIP-only project with no git remote at all."""
     token = _register(client, email="norepoinfo@example.com")
     r = client.post(
         "/me/projects", headers=_auth_headers(token),
         json={"slug": "no-repo-info", "branch": "main", "kind": "bot"},
     )
-    assert r.status_code == 422
+    assert r.status_code == 200, r.text
+    assert r.json()["repo_url"] is None

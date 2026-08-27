@@ -146,6 +146,11 @@
   .new-project-form{
     border:1px dashed var(--line); border-radius:6px; padding:20px; margin-bottom:24px; background:var(--bg-paper);
   }
+  .source-tab-btn{
+    padding:7px 14px; border:1px solid var(--line); background:#fff; border-radius:4px;
+    font-size:12.5px; cursor:pointer; color:var(--ink-soft); font-family:inherit;
+  }
+  .source-tab-btn.active{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
   .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
   .form-row.full{ grid-template-columns:1fr; }
   .field-sm label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; }
@@ -232,10 +237,11 @@
       <div class="new-project-form">
         <div class="section-title" style="margin-bottom:14px; font-size:16px;">Новый проект</div>
 
-        <div id="github-status" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:#fff;">
-          <span id="github-status-text" style="font-size:13px; color:var(--ink-soft);">Проверка подключения GitHub…</span>
-          <button type="button" class="btn btn-ghost btn-sm" id="github-connect-btn" style="display:none;">Подключить GitHub</button>
-          <button type="button" class="icon-btn" id="github-disconnect-btn" style="display:none;">отключить</button>
+        <div id="github-connect-block" style="text-align:center; padding:22px; margin-bottom:20px; border:1px dashed var(--line); border-radius:6px; display:none;">
+          <button type="button" class="btn btn-primary" id="github-connect-btn" style="max-width:280px; margin:0 auto; padding:14px 28px; font-size:15px;">Подключить GitHub</button>
+        </div>
+        <div id="github-connected-block" style="display:none; text-align:center; margin-bottom:16px; font-size:12.5px; color:var(--ink-soft);">
+          GitHub: <b id="github-username-display" style="color:var(--ink);"></b> &nbsp;·&nbsp; <a href="#" id="github-disconnect-btn" style="color:var(--ink-soft); text-decoration:underline;">отключить</a>
         </div>
 
         <form id="new-project-form">
@@ -253,18 +259,36 @@
               </select>
             </div>
           </div>
-          <div class="form-row full">
-            <div class="field-sm" id="repo-picker-select-wrap" style="display:none;">
-              <label for="np-repo-select">Репозиторий</label>
-              <select id="np-repo-select"></select>
-              <div style="margin-top:6px;"><a href="#" id="switch-to-manual" style="font-size:12px; color:var(--ink-soft); text-decoration:underline;">указать URL вручную</a></div>
-            </div>
-            <div class="field-sm" id="repo-picker-manual-wrap">
-              <label for="np-repo">URL репозитория (GitHub)</label>
-              <input type="text" id="np-repo" placeholder="https://github.com/you/project.git">
-              <div style="margin-top:6px; display:none;" id="switch-to-select-wrap"><a href="#" id="switch-to-select" style="font-size:12px; color:var(--ink-soft); text-decoration:underline;">выбрать из GitHub</a></div>
+
+          <div class="field-sm" style="margin-bottom:12px;">
+            <label>Источник кода</label>
+            <div style="display:flex; gap:6px; margin-top:5px;">
+              <button type="button" class="source-tab-btn active" data-source="github" id="source-tab-github">GitHub</button>
+              <button type="button" class="source-tab-btn" data-source="url">По ссылке</button>
+              <button type="button" class="source-tab-btn" data-source="upload">ZIP-архив</button>
             </div>
           </div>
+
+          <div class="form-row full" id="source-github-wrap">
+            <div class="field-sm">
+              <label for="np-repo-select">Репозиторий</label>
+              <select id="np-repo-select"></select>
+            </div>
+          </div>
+          <div class="form-row full" id="source-url-wrap" style="display:none;">
+            <div class="field-sm">
+              <label for="np-repo">URL репозитория (GitHub)</label>
+              <input type="text" id="np-repo" placeholder="https://github.com/you/project.git">
+            </div>
+          </div>
+          <div class="form-row full" id="source-upload-wrap" style="display:none;">
+            <div class="field-sm">
+              <label for="np-archive">ZIP-архив проекта</label>
+              <input type="file" id="np-archive" accept=".zip">
+              <div style="margin-top:6px; font-size:11.5px; color:var(--ink-soft);">Проект задеплоится сразу после создания — прогресс смотри в карточке ниже.</div>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="field-sm">
               <label for="np-branch">Ветка</label>
@@ -287,7 +311,7 @@
         <div class="plan-card">
           <h3>Free</h3>
           <div class="price">0₽<span>/мес</span></div>
-          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Чтобы попробовать, без карты</p>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Первый рабочий проект</p>
           <ul style="list-style:none; font-size:12.5px; color:var(--ink-soft); margin-bottom:16px; padding:0;">
             <li style="padding:5px 0; border-top:1px solid var(--line);">1 проект</li>
             <li style="padding:5px 0; border-top:1px solid var(--line);">512 МБ RAM на проект</li>
@@ -299,7 +323,7 @@
           <div style="position:absolute; top:-11px; left:24px; background:var(--accent); color:#fff; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; padding:4px 10px; border-radius:3px;">СТАРТОВАЯ ЦЕНА</div>
           <h3>Pro</h3>
           <div class="price">490₽<span>/мес</span></div>
-          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Для рабочих ботов и сайтов</p>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">Для полного использования</p>
           <ul style="list-style:none; font-size:12.5px; color:var(--ink); margin-bottom:16px; padding:0;">
             <li style="padding:5px 0; border-top:1px solid var(--line);">До 5 проектов</li>
             <li style="padding:5px 0; border-top:1px solid var(--line);">2 ГБ RAM на проект</li>
@@ -524,33 +548,51 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
 document.getElementById('new-project-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('np-submit');
-  const usingSelect = document.getElementById('repo-picker-select-wrap').style.display !== 'none';
-  const repoField = usingSelect
-    ? {repo_full_name: document.getElementById('np-repo-select').value}
-    : {repo_url: document.getElementById('np-repo').value.trim()};
+  const slug = document.getElementById('np-slug').value.trim();
+  const kind = document.getElementById('np-kind').value;
+  const branch = document.getElementById('np-branch').value.trim() || 'main';
 
-  if(usingSelect && !repoField.repo_full_name){
-    showToast('Выбери репозиторий из списка', true);
-    return;
-  }
-  if(!usingSelect && !repoField.repo_url){
-    showToast('Укажи URL репозитория', true);
-    return;
+  let repoField = {};
+  if(currentSourceMode === 'github'){
+    const val = document.getElementById('np-repo-select').value;
+    if(!val){ showToast('Выбери репозиторий из списка', true); return; }
+    repoField = {repo_full_name: val};
+  }else if(currentSourceMode === 'url'){
+    const val = document.getElementById('np-repo').value.trim();
+    if(!val){ showToast('Укажи URL репозитория', true); return; }
+    repoField = {repo_url: val};
+  }else if(currentSourceMode === 'upload'){
+    const fileInput = document.getElementById('np-archive');
+    if(!fileInput.files.length){ showToast('Выбери ZIP-файл', true); return; }
   }
 
   btn.disabled = true;
   try{
     const project = await api('/me/projects', {
       method: 'POST',
-      body: JSON.stringify(Object.assign({
-        slug: document.getElementById('np-slug').value.trim(),
-        branch: document.getElementById('np-branch').value.trim() || 'main',
-        kind: document.getElementById('np-kind').value,
-      }, repoField)),
+      body: JSON.stringify(Object.assign({slug, branch, kind}, repoField)),
     });
-    showToast(project.webhook_auto_configured
-      ? 'Проект создан — вебхук настроен автоматически, можно пушить'
-      : 'Проект создан — настрой вебхук на GitHub, детали в карточке ниже');
+
+    if(currentSourceMode === 'upload'){
+      const file = document.getElementById('np-archive').files[0];
+      const formData = new FormData();
+      formData.append('archive', file);
+      const uploadRes = await fetch(`${API}/me/projects/${project.slug}/deploy`, {
+        method: 'POST',
+        headers: {'Authorization': `Bearer ${token}`},
+        body: formData,
+      });
+      if(!uploadRes.ok){
+        const errBody = await uploadRes.json().catch(() => ({}));
+        throw new Error(errBody.detail || 'Не удалось загрузить архив');
+      }
+      showToast('Проект создан, деплой запущен — статус смотри в карточке ниже');
+    }else{
+      showToast(project.webhook_auto_configured
+        ? 'Проект создан — вебхук настроен автоматически, можно пушить'
+        : 'Проект создан — настрой вебхук на GitHub, детали в карточке ниже');
+    }
+
     document.getElementById('new-project-form').reset();
     document.getElementById('np-branch').value = 'main';
     loadProjects();
@@ -561,6 +603,23 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
   }
 });
 
+// ---------- source mode tabs (GitHub / URL / ZIP) ----------
+
+let currentSourceMode = 'github';
+const SOURCE_WRAPS = {github: 'source-github-wrap', url: 'source-url-wrap', upload: 'source-upload-wrap'};
+
+function setSourceMode(mode){
+  currentSourceMode = mode;
+  document.querySelectorAll('.source-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.source === mode));
+  Object.entries(SOURCE_WRAPS).forEach(([key, id]) => {
+    document.getElementById(id).style.display = key === mode ? 'block' : 'none';
+  });
+}
+
+document.querySelectorAll('.source-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => setSourceMode(btn.dataset.source));
+});
+
 // ---------- GitHub connect ----------
 
 function slugify(name){
@@ -568,20 +627,16 @@ function slugify(name){
 }
 
 async function refreshGithubStatus(){
-  const statusText = document.getElementById('github-status-text');
-  const connectBtn = document.getElementById('github-connect-btn');
-  const disconnectBtn = document.getElementById('github-disconnect-btn');
-  const selectWrap = document.getElementById('repo-picker-select-wrap');
-  const manualWrap = document.getElementById('repo-picker-manual-wrap');
-  const switchToSelectWrap = document.getElementById('switch-to-select-wrap');
+  const connectBlock = document.getElementById('github-connect-block');
+  const connectedBlock = document.getElementById('github-connected-block');
+  const usernameDisplay = document.getElementById('github-username-display');
+  const githubTab = document.getElementById('source-tab-github');
 
   if(currentUser.github_connected){
-    statusText.textContent = `GitHub: @${currentUser.github_username}`;
-    connectBtn.style.display = 'none';
-    disconnectBtn.style.display = 'inline-flex';
-    switchToSelectWrap.style.display = 'block';
-    selectWrap.style.display = 'block';
-    manualWrap.style.display = 'none';
+    connectBlock.style.display = 'none';
+    connectedBlock.style.display = 'block';
+    usernameDisplay.textContent = `@${currentUser.github_username}`;
+    githubTab.style.display = 'inline-block';
     try{
       const repos = await api('/me/github/repos');
       const select = document.getElementById('np-repo-select');
@@ -597,12 +652,10 @@ async function refreshGithubStatus(){
       showToast(err.message, true);
     }
   }else{
-    statusText.textContent = 'GitHub не подключён — можно указать URL репозитория вручную';
-    connectBtn.style.display = 'inline-flex';
-    disconnectBtn.style.display = 'none';
-    selectWrap.style.display = 'none';
-    manualWrap.style.display = 'block';
-    switchToSelectWrap.style.display = 'none';
+    connectBlock.style.display = 'block';
+    connectedBlock.style.display = 'none';
+    githubTab.style.display = 'none';
+    if(currentSourceMode === 'github') setSourceMode('url');
   }
 }
 
@@ -610,19 +663,6 @@ document.getElementById('np-repo-select').addEventListener('change', (e) => {
   const opt = e.target.options[e.target.selectedIndex];
   document.getElementById('np-branch').value = opt.dataset.branch;
   if(!document.getElementById('np-slug').value) document.getElementById('np-slug').value = slugify(opt.value.split('/')[1]);
-});
-
-document.getElementById('switch-to-manual').addEventListener('click', (e) => {
-  e.preventDefault();
-  document.getElementById('repo-picker-select-wrap').style.display = 'none';
-  document.getElementById('repo-picker-manual-wrap').style.display = 'block';
-  document.getElementById('switch-to-select-wrap').style.display = 'block';
-});
-
-document.getElementById('switch-to-select').addEventListener('click', (e) => {
-  e.preventDefault();
-  document.getElementById('repo-picker-select-wrap').style.display = 'block';
-  document.getElementById('repo-picker-manual-wrap').style.display = 'none';
 });
 
 document.getElementById('github-connect-btn').addEventListener('click', async () => {
@@ -634,7 +674,8 @@ document.getElementById('github-connect-btn').addEventListener('click', async ()
   }
 });
 
-document.getElementById('github-disconnect-btn').addEventListener('click', async () => {
+document.getElementById('github-disconnect-btn').addEventListener('click', async (e) => {
+  e.preventDefault();
   if(!confirm('Отключить GitHub? Автосоздание вебхуков для новых проектов перестанет работать.')) return;
   try{
     await api('/me/github', {method: 'DELETE'});

@@ -18,7 +18,7 @@ GitHub push → сборка образа → запуск контейнера 
 Docker-слой (`app/deployer.py`) написан на официальном `docker` SDK и рассчитан на реальный Docker-демон — у меня в песочнице его нет физически, поэтому этот файл не покрыт тестами напрямую, но весь пайплайн до и после него — да. Реальные вызовы к ЮKassa (`app/billing.py`) в тестах замоканы по той же причине — сеть до api.yookassa.ru недоступна из песочницы, но сама бизнес-логика (создание/активация подписки, лимиты, защита от подделки вебхука) протестирована полностью.
 
 ```
-pytest tests/ -v    # 96 passed
+pytest tests/ -v    # 111 passed
 ```
 
 ## API личного кабинета
@@ -28,9 +28,12 @@ POST /auth/register        {"email", "password"}           → {"access_token"}
 POST /auth/login           {"email", "password"}           → {"access_token"}
 GET  /me                   (Authorization: Bearer <token>) → {"id", "email", "plan"}
 
-POST   /me/projects        создать свой проект (с проверкой лимита тарифа)
+POST   /me/projects        создать свой проект (с проверкой лимита тарифа) — repo_url, repo_full_name или ни того, ни другого (CLI/ZIP-проект)
 GET    /me/projects        список только своих проектов
 DELETE /me/projects/{slug} удалить свой проект
+
+POST /me/projects/{slug}/deploy   ZIP-архив (multipart) → задеплоить без git — путь для CLI и загрузки в кабинете
+GET  /me/deployments/{id}         статус + лог одного деплоя — для опроса прогресса из CLI
 
 POST /billing/subscribe    {"plan": "pro"|"business", "provider": "yookassa"|"cryptomus"} → ссылка на оплату
 POST /webhook/yookassa     (вызывается самой ЮKassa)        → активирует подписку после реальной проверки платежа
@@ -38,6 +41,24 @@ POST /webhook/cryptomus    (вызывается самой Cryptomus)     → �
 ```
 
 `provider` необязателен, по умолчанию `"yookassa"` — существующие интеграции с картой продолжат работать без изменений на фронте, крипта — просто ещё один вариант оплаты того же тарифа.
+
+## CLI (`cli/verf.py`)
+
+Деплой без GitHub вообще — ноль зависимостей, только стандартная библиотека Python. Пользователь просто скачивает файл и запускает:
+
+```
+python3 verf.py login              # почта + пароль, токен сохраняется в ~/.verf/config.json
+python3 verf.py create my-bot --kind bot
+cd my-bot/
+python3 verf.py deploy my-bot      # архивирует текущую папку, грузит на сервер, стримит лог сборки
+python3 verf.py projects           # список своих проектов
+```
+
+Архивация сама исключает `.git`, `node_modules`, `venv`, `__pycache__` и подобное (список — `DEFAULT_IGNORE_DIRS` в файле). `deploy` заливает ZIP на `POST /me/projects/{slug}/deploy` и опрашивает `GET /me/deployments/{id}` каждые 2 секунды, печатая новые строки лога по мере появления — тот же паттерн, что у `railway up`/`flyctl deploy`.
+
+Проверено вручную end-to-end на реальном локальном сервере (не только юнит-тестами): регистрация → создание проекта → архивация с корректным исключением `.git`/`node_modules` → загрузка → построчный стриминг лога сборки до места, где не хватает Docker (в тестовом окружении) — на самом сервере, где Docker есть, доходит до конца.
+
+Тот же путь (`POST /me/projects/{slug}/deploy`) использует и кабинет — вкладка «ZIP-архив» при создании проекта делает ровно то же самое через `fetch()` вместо `urllib`.
 
 Лимиты тарифов сейчас в коде (`app/config.py`): `PLAN_PROJECT_LIMITS` — free: 1 проект, pro: 5, business: без лимита. `PLAN_MEM_LIMITS` / `PLAN_CPU_QUOTAS` — реальные лимиты Docker-контейнера на проект (free: 512 МБ / 0.5 vCPU, pro: 2 ГБ / 1 vCPU, business: 8 ГБ / 2 vCPU), применяются в `pipeline.py` по фактическому тарифу владельца проекта на каждом деплое — не только заявлены на сайте, но и реально ограничивают контейнер через `docker run --memory --cpu-quota`.
 

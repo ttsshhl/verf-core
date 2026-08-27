@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ProjectCreate(BaseModel):
@@ -8,18 +8,15 @@ class ProjectCreate(BaseModel):
     branch: str = "main"
     kind: str = "backend"  # site | bot | backend
     env: dict[str, str] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def _require_one_repo_source(self):
-        if not self.repo_url and not self.repo_full_name:
-            raise ValueError("Укажи repo_url или repo_full_name")
-        return self
+    # No validator requiring a repo source: a project can legitimately have
+    # none at all, deployed purely via `verf deploy` (CLI) or a ZIP upload
+    # in the cabinet instead of git.
 
 
 class ProjectOut(BaseModel):
     id: str
     slug: str
-    repo_url: str
+    repo_url: str | None
     branch: str
     kind: str
     webhook_secret: str

@@ -1,19 +1,24 @@
 import json
 import secrets
 import time
+import uuid
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Header
+from fastapi import FastAPI, Depends, HTTPException, Request, BackgroundTasks, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import auth, billing, github as gh
-from app.config import ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS
+from app.config import (
+    ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS,
+    MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR,
+)
 from app.db import get_db, init_db
 from app.models import Project, Deployment, DeployStatus, User, Subscription, SubscriptionStatus
-from app.pipeline import run_deploy
+from app.pipeline import run_deploy, run_deploy_from_upload
 from app.schemas import (
     ProjectCreate, ProjectOut, DeploymentOut,
     UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut, GithubRepoOut,
@@ -224,6 +229,56 @@ def list_my_deployments(slug: str, user: User = Depends(get_current_user), db: S
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
     return [_to_deployment_out(d) for d in project.deployments]
+
+
+@app.post("/me/projects/{slug}/deploy", response_model=DeploymentOut)
+async def deploy_from_archive(
+    slug: str, background_tasks: BackgroundTasks,
+    archive: UploadFile = File(...),
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """Deploy path for the CLI (`verf deploy`) and the cabinet's drag-drop
+    upload — no git involved. Accepts a ZIP of the project, saves it to a
+    temp path, and runs the same build+run pipeline as the GitHub webhook
+    (just entering through builder.replace_from_archive instead of a clone).
+    """
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+
+    if not archive.filename or not archive.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Ожидается ZIP-архив")
+
+    max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    body = await archive.read(max_bytes + 1)
+    if len(body) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Архив больше {MAX_UPLOAD_SIZE_MB} МБ")
+    if len(body) == 0:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+
+    upload_dir = WORKSPACE_DIR / ".uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    saved_path = upload_dir / f"{project.slug}-{uuid.uuid4().hex[:12]}.zip"
+    saved_path.write_bytes(body)
+
+    deployment = Deployment(project_id=project.id, status=DeployStatus.pending)
+    db.add(deployment)
+    db.commit()
+    db.refresh(deployment)
+
+    background_tasks.add_task(run_deploy_from_upload, db, project, deployment, saved_path)
+
+    return _to_deployment_out(deployment)
+
+
+@app.get("/me/deployments/{deployment_id}", response_model=DeploymentOut)
+def get_my_deployment(deployment_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Lets the CLI poll a single deployment's status/log until it's terminal
+    (running/failed), without fetching the whole project's history each time."""
+    deployment = db.query(Deployment).filter_by(id=deployment_id).first()
+    if not deployment or not deployment.project or deployment.project.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Деплой не найден")
+    return _to_deployment_out(deployment)
 
 
 @app.delete("/me/projects/{slug}")

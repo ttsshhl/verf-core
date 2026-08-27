@@ -84,7 +84,7 @@ class Project(Base):
     id = Column(String, primary_key=True, default=gen_id)
     owner_id = Column(String, ForeignKey("users.id"), nullable=True)  # nullable: admin-created projects may have no owner
     slug = Column(String, unique=True, nullable=False, index=True)
-    repo_url = Column(String, nullable=False)
+    repo_url = Column(String, nullable=True)  # null for projects deployed only via CLI/ZIP upload (no git remote)
     branch = Column(String, default="main")
     kind = Column(Enum(ProjectKind), default=ProjectKind.backend)
     webhook_secret = Column(String, default=gen_secret)  # per-project secret used to verify GitHub payloads
