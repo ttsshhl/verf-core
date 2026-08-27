@@ -81,6 +81,28 @@ def health():
     return {"status": "ok"}
 
 
+# Cached lookup of the server's own current public IP — used to show users
+# accurate DNS instructions (apex-domain A record) without hardcoding an IP
+# anywhere in the frontend, which would go stale the next time the server's
+# IP changes (has happened multiple times already due to upstream blocking).
+_server_ip_cache = {"ip": None, "fetched_at": 0.0}
+_SERVER_IP_CACHE_TTL = 3600  # seconds
+
+
+@app.get("/server-info")
+def server_info():
+    now = time.time()
+    if not _server_ip_cache["ip"] or now - _server_ip_cache["fetched_at"] > _SERVER_IP_CACHE_TTL:
+        try:
+            import requests
+            resp = requests.get("https://api.ipify.org?format=json", timeout=5)
+            _server_ip_cache["ip"] = resp.json()["ip"]
+            _server_ip_cache["fetched_at"] = now
+        except Exception:
+            pass  # keep the last known-good value (or None if we've never succeeded)
+    return {"ip": _server_ip_cache["ip"], "domain_suffix": DOMAIN_SUFFIX}
+
+
 # ---------- Auth ----------
 
 @app.post("/auth/register", response_model=TokenOut)

@@ -390,6 +390,7 @@
 const API = 'https://api.verfdeploy.ru';
 let token = localStorage.getItem('verf_token');
 let currentUser = null;
+let serverInfo = {ip: null, domain_suffix: null};
 
 const PLAN_LABELS = {pro: 'Pro, 990₽/мес', business: 'Business, 2 990₽/мес'};
 const intendedPlan = new URLSearchParams(window.location.search).get('plan');
@@ -519,7 +520,12 @@ function renderProjects(projects){
             <input type="text" class="domain-input" placeholder="example.com" style="flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-size:12.5px;">
             <button class="btn btn-ghost btn-sm domain-add-btn">Привязать домен</button>
           </div>
-          <div style="margin-top:6px; font-size:11px; color:var(--ink-soft);">Направь свой домен через CNAME-запись на <span class="mono">${p.url.replace('https://','')}</span></div>
+          <div style="margin-top:8px; padding:10px 12px; background:var(--bg-paper); border:1px solid var(--line); border-radius:4px; font-size:11px; color:var(--ink-soft); line-height:1.6;">
+            <div style="margin-bottom:6px;"><b style="color:var(--ink);">Домен без www</b> (например <span class="mono">example.com</span>) — A-запись:<br>
+            Хост <span class="mono">@</span> → <span class="mono">${serverInfo.ip || 'узнаём IP…'}</span></div>
+            <div><b style="color:var(--ink);">Домен с www или поддомен</b> (например <span class="mono">www.example.com</span>) — CNAME-запись:<br>
+            Хост <span class="mono">www</span> → <span class="mono">${p.url.replace('https://','')}</span></div>
+          </div>
           `}
         </div>
 
@@ -838,6 +844,7 @@ async function enterApp(){
     hideBootLoader();
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
+    try{ serverInfo = await api('/server-info'); }catch(err){ /* fall back to placeholder text in cards */ }
     loadProjects();
     refreshGithubStatus();
 

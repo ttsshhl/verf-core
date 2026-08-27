@@ -237,3 +237,56 @@ def test_setting_domain_on_never_deployed_project_does_not_crash(client):
     )
     assert r.status_code == 200
     assert r.json()["custom_domain"] == "example.com"
+
+
+# ---------- /server-info (used by cabinet for DNS instructions) ----------
+
+def test_server_info_returns_ip_and_domain_suffix(client, monkeypatch):
+    from app import main as main_module
+    from app.config import DOMAIN_SUFFIX
+
+    class FakeResponse:
+        def json(self):
+            return {"ip": "1.2.3.4"}
+
+    monkeypatch.setattr("requests.get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr(main_module, "_server_ip_cache", {"ip": None, "fetched_at": 0.0})
+
+    r = client.get("/server-info")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ip"] == "1.2.3.4"
+    assert body["domain_suffix"] == DOMAIN_SUFFIX
+
+
+def test_server_info_caches_and_does_not_refetch_immediately(client, monkeypatch):
+    from app import main as main_module
+    import time as time_module
+
+    call_count = {"n": 0}
+
+    class FakeResponse:
+        def json(self):
+            call_count["n"] += 1
+            return {"ip": "5.6.7.8"}
+
+    monkeypatch.setattr("requests.get", lambda *a, **kw: FakeResponse())
+    monkeypatch.setattr(main_module, "_server_ip_cache", {"ip": None, "fetched_at": 0.0})
+
+    client.get("/server-info")
+    client.get("/server-info")
+    assert call_count["n"] == 1  # second call served from cache, no re-fetch
+
+
+def test_server_info_survives_external_lookup_failure(client, monkeypatch):
+    from app import main as main_module
+
+    def boom(*a, **kw):
+        raise Exception("network down")
+
+    monkeypatch.setattr("requests.get", boom)
+    monkeypatch.setattr(main_module, "_server_ip_cache", {"ip": None, "fetched_at": 0.0})
+
+    r = client.get("/server-info")
+    assert r.status_code == 200
+    assert r.json()["ip"] is None  # graceful — no crash, just no IP yet
