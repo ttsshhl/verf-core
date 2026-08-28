@@ -519,18 +519,19 @@ def _activate_subscription(db: Session, subscription: Subscription, background_t
 
 
 def _send_email_best_effort(send_fn, *args) -> None:
-    """Runs an email-sending function and swallows EmailError — used from
+    """Runs an email-sending function and swallows the error — used from
     BackgroundTasks so a broken SMTP config never surfaces as a failed
-    registration or payment. Any other unexpected exception is swallowed
-    too, on the same reasoning: this is a courtesy notification, not part
-    of the transaction it's attached to.
+    registration or payment. The failure is still logged (visible via
+    `docker logs`) so it's diagnosable without being fatal to the request
+    that triggered it — this is a courtesy notification, not part of the
+    transaction it's attached to.
     """
     try:
         send_fn(*args)
-    except notifications.EmailError:
-        pass
-    except Exception:
-        pass
+    except notifications.EmailError as exc:
+        print(f"[email] отправка не удалась: {exc}")
+    except Exception as exc:
+        print(f"[email] неожиданная ошибка при отправке: {exc}")
 
 
 # ---------- Admin (existing, unchanged behaviour) ----------
