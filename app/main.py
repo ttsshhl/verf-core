@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app import auth, billing, github as gh
+from app import auth, billing, github as gh, notifications
 from app.config import (
     ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS,
     MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR,
@@ -106,13 +106,14 @@ def server_info():
 # ---------- Auth ----------
 
 @app.post("/auth/register", response_model=TokenOut)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
+def register(payload: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if db.query(User).filter_by(email=payload.email).first():
         raise HTTPException(status_code=409, detail="Пользователь с такой почтой уже зарегистрирован")
     user = User(email=payload.email, password_hash=auth.hash_password(payload.password))
     db.add(user)
     db.commit()
     db.refresh(user)
+    background_tasks.add_task(_send_email_best_effort, notifications.send_welcome_email, user.email)
     return TokenOut(access_token=auth.create_access_token(user.id))
 
 
@@ -450,7 +451,7 @@ def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user),
 
 
 @app.post("/webhook/yookassa")
-async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
+async def yookassa_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.json()
     payment_id = body.get("object", {}).get("id")
     if not payment_id:
@@ -469,7 +470,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
         return {"ignored": "unknown payment_id"}
 
     if payment.get("status") == "succeeded" and subscription.status != SubscriptionStatus.active:
-        _activate_subscription(db, subscription)
+        _activate_subscription(db, subscription, background_tasks)
     elif payment.get("status") == "canceled":
         subscription.status = SubscriptionStatus.canceled
         db.commit()
@@ -478,7 +479,7 @@ async def yookassa_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/webhook/cryptomus")
-async def cryptomus_webhook(request: Request, db: Session = Depends(get_db)):
+async def cryptomus_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.json()
 
     if not billing.verify_cryptomus_signature(body):
@@ -496,7 +497,7 @@ async def cryptomus_webhook(request: Request, db: Session = Depends(get_db)):
         return {"ignored": "unknown payment_id"}
 
     if status in ("paid", "paid_over") and subscription.status != SubscriptionStatus.active:
-        _activate_subscription(db, subscription)
+        _activate_subscription(db, subscription, background_tasks)
     elif status in ("cancel", "fail"):
         subscription.status = SubscriptionStatus.canceled
         db.commit()
@@ -504,12 +505,32 @@ async def cryptomus_webhook(request: Request, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
-def _activate_subscription(db: Session, subscription: Subscription) -> None:
+def _activate_subscription(db: Session, subscription: Subscription, background_tasks: BackgroundTasks) -> None:
     subscription.status = SubscriptionStatus.active
     subscription.activated_at = datetime.now(timezone.utc)
     subscription.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     subscription.user.plan = subscription.plan
     db.commit()
+    background_tasks.add_task(
+        _send_email_best_effort,
+        notifications.send_payment_confirmation_email,
+        subscription.user.email, subscription.plan, subscription.amount_rub,
+    )
+
+
+def _send_email_best_effort(send_fn, *args) -> None:
+    """Runs an email-sending function and swallows EmailError — used from
+    BackgroundTasks so a broken SMTP config never surfaces as a failed
+    registration or payment. Any other unexpected exception is swallowed
+    too, on the same reasoning: this is a courtesy notification, not part
+    of the transaction it's attached to.
+    """
+    try:
+        send_fn(*args)
+    except notifications.EmailError:
+        pass
+    except Exception:
+        pass
 
 
 # ---------- Admin (existing, unchanged behaviour) ----------

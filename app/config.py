@@ -70,3 +70,15 @@ GITHUB_CLIENT_ID = os.getenv("VERF_GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.getenv("VERF_GITHUB_CLIENT_SECRET", "")
 GITHUB_REDIRECT_URI = os.getenv("VERF_GITHUB_REDIRECT_URI", f"https://api.{DOMAIN_SUFFIX}/auth/github/callback")
 GITHUB_CONNECT_NONCE_TTL_SECONDS = 120
+
+# --- Email (transactional — welcome + payment confirmation) ---
+# Yandex Mail SMTP by default, since that's what the business already uses.
+# For Yandex specifically: Почта → Настройки → Пароли приложений → создать
+# отдельный пароль для SMTP (не аккаунтный пароль — Yandex requires an
+# app-specific password for SMTP/IMAP access).
+SMTP_HOST = os.getenv("VERF_SMTP_HOST", "smtp.yandex.ru")
+SMTP_PORT = int(os.getenv("VERF_SMTP_PORT", "465"))
+SMTP_USER = os.getenv("VERF_SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("VERF_SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("VERF_SMTP_FROM_EMAIL", SMTP_USER)
+SMTP_FROM_NAME = os.getenv("VERF_SMTP_FROM_NAME", "VERF")
