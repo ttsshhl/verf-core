@@ -23,7 +23,7 @@ from app.pipeline import run_deploy, run_deploy_from_upload
 from app.schemas import (
     ProjectCreate, ProjectOut, DeploymentOut,
     UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut, GithubRepoOut,
-    DomainRequest,
+    DomainRequest, EnvUpdateRequest,
 )
 from app.webhook import verify_signature, extract_push_info
 
@@ -321,7 +321,7 @@ def set_custom_domain(
 
     project.custom_domain = domain
     db.commit()
-    _try_apply_domain_to_running_container(db, project)
+    _redeploy_running_container(db, project)
     db.refresh(project)
     return _to_project_out(project)
 
@@ -334,17 +334,33 @@ def remove_custom_domain(slug: str, user: User = Depends(get_current_user), db: 
 
     project.custom_domain = None
     db.commit()
-    _try_apply_domain_to_running_container(db, project)
+    _redeploy_running_container(db, project)
     db.refresh(project)
     return _to_project_out(project)
 
 
-def _try_apply_domain_to_running_container(db: Session, project: Project) -> None:
+@app.put("/me/projects/{slug}/env", response_model=ProjectOut)
+def update_env(
+    slug: str, payload: EnvUpdateRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+
+    project.env_json = json.dumps(payload.env)
+    db.commit()
+    _redeploy_running_container(db, project)
+    db.refresh(project)
+    return _to_project_out(project)
+
+
+def _redeploy_running_container(db: Session, project: Project) -> None:
     """Best-effort: if the project has a currently-running deployment,
-    recreate its container right away so the domain change (add/remove)
-    takes effect immediately instead of waiting for the next push. If
-    Docker isn't reachable or anything else goes wrong, the domain is still
-    saved in the database — it'll simply apply on the next real deploy.
+    recreate its container right away with the project's current settings
+    (env vars, custom domain, plan-based resource limits) so a change takes
+    effect immediately instead of waiting for the next push. If Docker isn't
+    reachable or anything else goes wrong, the change is still saved in the
+    database — it'll simply apply on the next real deploy.
     """
     latest_running = (
         db.query(Deployment)
@@ -368,7 +384,7 @@ def _try_apply_domain_to_running_container(db: Session, project: Project) -> Non
             mem_limit=mem_limit, cpu_quota=cpu_quota, custom_domain=project.custom_domain,
         )
     except deployer.DeployError:
-        pass  # best-effort — domain is saved regardless, will apply on next real deploy
+        pass  # best-effort — the change is saved regardless, will apply on next real deploy
 
 
 @app.delete("/me/projects/{slug}")
@@ -604,6 +620,7 @@ def _to_project_out(p: Project) -> ProjectOut:
         custom_domain=p.custom_domain,
         url=f"https://{p.slug}.{DOMAIN_SUFFIX}",
         custom_domain_url=f"https://{p.custom_domain}" if p.custom_domain else None,
+        env=json.loads(p.env_json or "{}"),
     )
 
 

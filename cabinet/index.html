@@ -311,6 +311,14 @@
             </div>
           </div>
 
+          <div class="form-row full">
+            <div class="field-sm">
+              <label for="np-env">Переменные окружения <span style="color:var(--ink-soft); font-weight:400;">(необязательно)</span></label>
+              <textarea id="np-env" placeholder="BOT_TOKEN=твой_токен&#10;DEBUG=false" rows="3" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12.5px; resize:vertical;"></textarea>
+              <div style="margin-top:4px; font-size:11px; color:var(--ink-soft);">По одной переменной на строку, в формате КЛЮЧ=значение</div>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="field-sm">
               <label for="np-branch">Ветка</label>
@@ -529,6 +537,14 @@ function renderProjects(projects){
           `}
         </div>
 
+        <div class="env-section" data-slug="${p.slug}" style="margin-bottom:12px;">
+          <div style="font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Переменные окружения</div>
+          <textarea class="env-textarea" rows="3" placeholder="BOT_TOKEN=твой_токен" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12.5px; resize:vertical;">${envToText(p.env)}</textarea>
+          <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+            <button class="btn btn-ghost btn-sm env-save-btn">Сохранить переменные</button>
+          </div>
+        </div>
+
         <div class="deploys" data-slug="${p.slug}">
           <span style="font-size:12.5px; color:var(--ink-soft);">Загрузка истории деплоев…</span>
         </div>
@@ -614,7 +630,39 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
       showToast(err.message, true);
     }
   }
+
+  if(e.target.classList.contains('env-save-btn')){
+    const textarea = card.querySelector('.env-textarea');
+    const env = parseEnvText(textarea.value);
+    e.target.disabled = true;
+    try{
+      await api(`/me/projects/${slug}/env`, {method: 'PUT', body: JSON.stringify({env})});
+      showToast('Переменные сохранены — применены к запущенному контейнеру');
+    }catch(err){
+      showToast(err.message, true);
+    }finally{
+      e.target.disabled = false;
+    }
+  }
 });
+
+function parseEnvText(text){
+  const env = {};
+  text.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if(!trimmed || trimmed.startsWith('#')) return;
+    const eq = trimmed.indexOf('=');
+    if(eq === -1) return;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if(key) env[key] = value;
+  });
+  return env;
+}
+
+function envToText(env){
+  return Object.entries(env || {}).map(([k, v]) => `${k}=${v}`).join('\n');
+}
 
 document.getElementById('new-project-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -622,6 +670,7 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
   const slug = document.getElementById('np-slug').value.trim();
   const kind = document.getElementById('np-kind').value;
   const branch = document.getElementById('np-branch').value.trim() || 'main';
+  const env = parseEnvText(document.getElementById('np-env').value);
 
   let repoField = {};
   if(currentSourceMode === 'github'){
@@ -641,7 +690,7 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
   try{
     const project = await api('/me/projects', {
       method: 'POST',
-      body: JSON.stringify(Object.assign({slug, branch, kind}, repoField)),
+      body: JSON.stringify(Object.assign({slug, branch, kind, env}, repoField)),
     });
 
     if(currentSourceMode === 'upload'){

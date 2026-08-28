@@ -290,3 +290,119 @@ def test_server_info_survives_external_lookup_failure(client, monkeypatch):
     r = client.get("/server-info")
     assert r.status_code == 200
     assert r.json()["ip"] is None  # graceful — no crash, just no IP yet
+
+
+# ---------- env vars ----------
+
+def test_create_project_with_env_vars(client):
+    token = _register(client, "envcreate@example.com")
+    r = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "envproj", "kind": "bot", "env": {"BOT_TOKEN": "secret123", "DEBUG": "false"}},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["env"] == {"BOT_TOKEN": "secret123", "DEBUG": "false"}
+
+
+def test_create_project_without_env_defaults_to_empty(client):
+    token = _register(client, "envdefault@example.com")
+    r = client.post("/me/projects", headers=_auth_headers(token), json={"slug": "noenv", "kind": "bot"})
+    assert r.status_code == 200
+    assert r.json()["env"] == {}
+
+
+def test_update_env(client):
+    token = _register(client, "envupdate@example.com")
+    client.post("/me/projects", headers=_auth_headers(token), json={"slug": "proj1", "kind": "bot"})
+
+    r = client.put(
+        "/me/projects/proj1/env", headers=_auth_headers(token),
+        json={"env": {"API_KEY": "abc", "PORT": "8080"}},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["env"] == {"API_KEY": "abc", "PORT": "8080"}
+
+
+def test_update_env_replaces_not_merges(client):
+    """Setting env should replace the whole set, not merge with the old
+    one — same semantics as PUT everywhere else in this API."""
+    token = _register(client, "envreplace@example.com")
+    client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "proj1", "kind": "bot", "env": {"OLD_KEY": "old"}},
+    )
+    r = client.put(
+        "/me/projects/proj1/env", headers=_auth_headers(token), json={"env": {"NEW_KEY": "new"}},
+    )
+    assert r.status_code == 200
+    assert r.json()["env"] == {"NEW_KEY": "new"}
+
+
+def test_update_env_to_empty_clears_it(client):
+    token = _register(client, "envclear@example.com")
+    client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "proj1", "kind": "bot", "env": {"KEY": "val"}},
+    )
+    r = client.put("/me/projects/proj1/env", headers=_auth_headers(token), json={"env": {}})
+    assert r.status_code == 200
+    assert r.json()["env"] == {}
+
+
+def test_update_env_requires_ownership(client):
+    token_a = _register(client, "envowner@example.com")
+    token_b = _register(client, "envattacker@example.com")
+    client.post("/me/projects", headers=_auth_headers(token_a), json={"slug": "proj1", "kind": "bot"})
+
+    r = client.put(
+        "/me/projects/proj1/env", headers=_auth_headers(token_b), json={"env": {"X": "y"}},
+    )
+    assert r.status_code == 404
+
+
+def test_update_env_requires_auth(client):
+    r = client.put("/me/projects/whatever/env", json={"env": {"X": "y"}})
+    assert r.status_code == 401
+
+
+def test_update_env_on_running_project_triggers_redeploy_with_new_env(client, monkeypatch, fake_upstream):
+    from app import deployer
+
+    monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
+
+    captured = {}
+
+    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None, custom_domain=None):
+        captured["env"] = env
+        return "fake-container-id"
+
+    monkeypatch.setattr(deployer, "run_container", fake_run_container)
+
+    token = _register(client, "envlive@example.com")
+    proj = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "live-env-proj", "repo_url": str(fake_upstream), "branch": "main", "kind": "site"},
+    ).json()
+
+    body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
+    sig = _sign(proj["webhook_secret"], body)
+    client.post(
+        "/webhook/github/live-env-proj", content=body,
+        headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": "push"},
+    )
+    assert captured["env"] == {}
+
+    client.put(
+        "/me/projects/live-env-proj/env", headers=_auth_headers(token), json={"env": {"NEW_TOKEN": "xyz"}},
+    )
+    assert captured["env"] == {"NEW_TOKEN": "xyz"}
+
+
+def test_update_env_on_never_deployed_project_does_not_crash(client):
+    token = _register(client, "envfresh@example.com")
+    client.post("/me/projects", headers=_auth_headers(token), json={"slug": "fresh-env-proj", "kind": "bot"})
+    r = client.put(
+        "/me/projects/fresh-env-proj/env", headers=_auth_headers(token), json={"env": {"X": "y"}},
+    )
+    assert r.status_code == 200
+    assert r.json()["env"] == {"X": "y"}

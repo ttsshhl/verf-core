@@ -24,12 +24,17 @@ class ProjectOut(BaseModel):
     custom_domain: str | None
     url: str
     custom_domain_url: str | None = None
+    env: dict[str, str] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class DomainRequest(BaseModel):
     domain: str = Field(..., min_length=3, max_length=253)
+
+
+class EnvUpdateRequest(BaseModel):
+    env: dict[str, str] = Field(default_factory=dict)
 
 
 class UserCreate(BaseModel):
