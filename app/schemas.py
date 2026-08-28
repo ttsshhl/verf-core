@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict
+import re
+
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class ProjectCreate(BaseModel):
@@ -39,7 +41,18 @@ class EnvUpdateRequest(BaseModel):
 
 class UserCreate(BaseModel):
     email: str
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=6)
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("Пароль должен быть не короче 6 символов")
+        if not re.search(r"[A-ZА-ЯЁ]", v):
+            raise ValueError("Пароль должен содержать хотя бы одну заглавную букву")
+        if not re.search(r"[^\w\s]", v, re.UNICODE):
+            raise ValueError("Пароль должен содержать хотя бы один символ (например !@#$%)")
+        return v
 
 
 class UserLogin(BaseModel):

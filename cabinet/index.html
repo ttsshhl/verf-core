@@ -220,14 +220,30 @@
       <div class="field">
         <label for="auth-password">Пароль</label>
         <div style="position:relative;">
-          <input type="password" id="auth-password" required minlength="8" autocomplete="current-password" style="padding-right:40px;">
+          <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" style="padding-right:40px;">
           <button type="button" id="toggle-password" aria-label="Показать пароль" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:6px; color:var(--ink-soft); display:flex;">
             <svg id="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg id="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
         </div>
+        <div id="password-requirements" style="display:none; margin-top:6px; font-size:11.5px; color:var(--ink-soft); line-height:1.5;">
+          Минимум 6 символов, заглавная буква и символ (например !@#$%)
+        </div>
       </div>
-      <button type="submit" class="btn" id="auth-submit">Войти</button>
+      <div class="field" id="auth-password-confirm-field" style="display:none;">
+        <label for="auth-password-confirm">Повторите пароль</label>
+        <div style="position:relative;">
+          <input type="password" id="auth-password-confirm" autocomplete="new-password" style="padding-right:40px;">
+          <button type="button" id="toggle-password-confirm" aria-label="Показать пароль" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:6px; color:var(--ink-soft); display:flex;">
+            <svg id="eye-open-confirm" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg id="eye-closed-confirm" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+      <button type="submit" class="btn" id="auth-submit" style="display:flex; align-items:center; justify-content:center; gap:8px;">
+        <span id="auth-submit-text">Войти</span>
+        <span id="auth-submit-spinner" style="display:none; width:14px; height:14px; border:2px solid rgba(237,242,246,0.35); border-top-color:#EDF2F6; border-radius:50%; animation:boot-spin 0.6s linear infinite;"></span>
+      </button>
       <div class="error-msg" id="auth-error"></div>
     </form>
     <div id="plan-hint" style="display:none; margin-top:16px; padding:10px 12px; background:var(--accent-dim); border-radius:4px; font-size:12.5px; color:var(--ink);"></div>
@@ -431,12 +447,26 @@ async function api(path, opts = {}){
 
 // ---------- auth screen ----------
 let authMode = 'login';
+
+function validatePasswordStrength(pw){
+  if(pw.length < 6) return 'Пароль должен быть не короче 6 символов';
+  if(!/[A-ZА-ЯЁ]/.test(pw)) return 'Нужна хотя бы одна заглавная буква';
+  if(!/[^a-zA-Zа-яА-ЯёЁ0-9\s]/.test(pw)) return 'Нужен хотя бы один символ (например !@#$%)';
+  return null;
+}
+
 document.querySelectorAll('.auth-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     authMode = tab.dataset.mode;
     document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
-    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+    document.getElementById('auth-submit-text').textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
     document.getElementById('auth-error').classList.remove('show');
+
+    const isRegister = authMode === 'register';
+    document.getElementById('password-requirements').style.display = isRegister ? 'block' : 'none';
+    document.getElementById('auth-password-confirm-field').style.display = isRegister ? 'block' : 'none';
+    document.getElementById('auth-password').setAttribute('autocomplete', isRegister ? 'new-password' : 'current-password');
+    if(!isRegister) document.getElementById('auth-password-confirm').value = '';
   });
 });
 
@@ -446,8 +476,28 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
   const password = document.getElementById('auth-password').value;
   const errEl = document.getElementById('auth-error');
   const btn = document.getElementById('auth-submit');
+  const btnText = document.getElementById('auth-submit-text');
+  const btnSpinner = document.getElementById('auth-submit-spinner');
   errEl.classList.remove('show');
+
+  if(authMode === 'register'){
+    const confirm = document.getElementById('auth-password-confirm').value;
+    const strengthError = validatePasswordStrength(password);
+    if(strengthError){
+      errEl.textContent = strengthError;
+      errEl.classList.add('show');
+      return;
+    }
+    if(password !== confirm){
+      errEl.textContent = 'Пароли не совпадают';
+      errEl.classList.add('show');
+      return;
+    }
+  }
+
   btn.disabled = true;
+  btnText.textContent = authMode === 'login' ? 'Входим…' : 'Регистрируем…';
+  btnSpinner.style.display = 'inline-block';
   try{
     const path = authMode === 'login' ? '/auth/login' : '/auth/register';
     const data = await api(path, {method: 'POST', body: JSON.stringify({email, password})});
@@ -459,6 +509,8 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
     errEl.classList.add('show');
   }finally{
     btn.disabled = false;
+    btnSpinner.style.display = 'none';
+    btnText.textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
   }
 });
 
@@ -928,6 +980,14 @@ document.getElementById('toggle-password').addEventListener('click', () => {
   input.type = isHidden ? 'text' : 'password';
   document.getElementById('eye-open').style.display = isHidden ? 'none' : 'block';
   document.getElementById('eye-closed').style.display = isHidden ? 'block' : 'none';
+});
+
+document.getElementById('toggle-password-confirm').addEventListener('click', () => {
+  const input = document.getElementById('auth-password-confirm');
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  document.getElementById('eye-open-confirm').style.display = isHidden ? 'none' : 'block';
+  document.getElementById('eye-closed-confirm').style.display = isHidden ? 'block' : 'none';
 });
 
 if(token){

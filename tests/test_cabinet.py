@@ -35,7 +35,7 @@ def client(tmp_path, monkeypatch):
         app.dependency_overrides.clear()
 
 
-def _register(client, email="alice@example.com", password="correct-horse-battery"):
+def _register(client, email="alice@example.com", password="Correct-Horse1!"):
     r = client.post("/auth/register", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
@@ -54,7 +54,7 @@ def test_register_and_get_token(client):
 
 def test_register_duplicate_email_rejected(client):
     _register(client, email="dupe@example.com")
-    r = client.post("/auth/register", json={"email": "dupe@example.com", "password": "another-password"})
+    r = client.post("/auth/register", json={"email": "dupe@example.com", "password": "Another-Pass1!"})
     assert r.status_code == 409
 
 
@@ -63,15 +63,39 @@ def test_register_short_password_rejected(client):
     assert r.status_code == 422
 
 
+def test_register_password_without_uppercase_rejected(client):
+    r = client.post("/auth/register", json={"email": "noupper@example.com", "password": "lowercase1!"})
+    assert r.status_code == 422
+    assert "заглавную" in r.text
+
+
+def test_register_password_without_symbol_rejected(client):
+    r = client.post("/auth/register", json={"email": "nosymbol@example.com", "password": "NoSymbol1"})
+    assert r.status_code == 422
+    assert "символ" in r.text
+
+
+def test_register_password_meeting_all_requirements_accepted(client):
+    r = client.post("/auth/register", json={"email": "goodpass@example.com", "password": "Good-Pass1"})
+    assert r.status_code == 200
+
+
+def test_register_six_char_password_with_requirements_accepted(client):
+    """Exactly the stated minimum (6 chars) should be accepted, not just
+    rejected as 'too short' by an off-by-one bug."""
+    r = client.post("/auth/register", json={"email": "sixchar@example.com", "password": "Ab1!ef"})
+    assert r.status_code == 200
+
+
 def test_login_success(client):
-    _register(client, email="bob@example.com", password="my-secure-password")
-    r = client.post("/auth/login", json={"email": "bob@example.com", "password": "my-secure-password"})
+    _register(client, email="bob@example.com", password="My-Secure1!")
+    r = client.post("/auth/login", json={"email": "bob@example.com", "password": "My-Secure1!"})
     assert r.status_code == 200
     assert "access_token" in r.json()
 
 
 def test_login_wrong_password_rejected(client):
-    _register(client, email="carol@example.com", password="correct-password")
+    _register(client, email="carol@example.com", password="Correct-Pass1!")
     r = client.post("/auth/login", json={"email": "carol@example.com", "password": "wrong-password"})
     assert r.status_code == 401
 
