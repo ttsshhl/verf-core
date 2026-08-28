@@ -329,9 +329,13 @@
 
           <div class="form-row full">
             <div class="field-sm">
-              <label for="np-env">Переменные окружения <span style="color:var(--ink-soft); font-weight:400;">(необязательно)</span></label>
-              <textarea id="np-env" placeholder="BOT_TOKEN=твой_токен&#10;DEBUG=false" rows="3" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12.5px; resize:vertical;"></textarea>
-              <div style="margin-top:4px; font-size:11px; color:var(--ink-soft);">По одной переменной на строку, в формате КЛЮЧ=значение</div>
+              <label>Переменные окружения <span style="color:var(--ink-soft); font-weight:400;">(необязательно)</span></label>
+              <div id="np-env-rows" style="margin-top:5px;"></div>
+              <div style="display:flex; gap:6px; margin-top:4px;">
+                <input type="text" id="np-env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                <input type="text" id="np-env-new-value" placeholder="значение" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                <button type="button" class="btn btn-ghost btn-sm" id="np-env-add-btn" style="flex-shrink:0;">Добавить</button>
+              </div>
             </div>
           </div>
 
@@ -591,9 +595,11 @@ function renderProjects(projects){
 
         <div class="env-section" data-slug="${p.slug}" style="margin-bottom:12px;">
           <div style="font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Переменные окружения</div>
-          <textarea class="env-textarea" rows="3" placeholder="BOT_TOKEN=твой_токен" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12.5px; resize:vertical;">${envToText(p.env)}</textarea>
-          <div style="display:flex; justify-content:flex-end; margin-top:6px;">
-            <button class="btn btn-ghost btn-sm env-save-btn">Сохранить переменные</button>
+          <div class="env-rows-list">${renderEnvRowsHtml(p.env)}</div>
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            <input type="text" class="env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <input type="text" class="env-new-value" placeholder="значение" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <button type="button" class="btn btn-ghost btn-sm env-add-btn" style="flex-shrink:0;">Добавить</button>
           </div>
         </div>
 
@@ -683,13 +689,42 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
     }
   }
 
-  if(e.target.classList.contains('env-save-btn')){
-    const textarea = card.querySelector('.env-textarea');
-    const env = parseEnvText(textarea.value);
+  if(e.target.classList.contains('env-reveal-btn')){
+    const row = e.target.closest('.env-row');
+    const valueSpan = row.querySelector('.env-row-value');
+    const isMasked = e.target.textContent === 'показать';
+    valueSpan.textContent = isMasked ? row.dataset.value : '••••••••';
+    e.target.textContent = isMasked ? 'скрыть' : 'показать';
+  }
+
+  if(e.target.classList.contains('env-delete-btn')){
+    const row = e.target.closest('.env-row');
+    const key = row.dataset.key;
+    if(!confirm(`Удалить переменную «${key}»?`)) return;
+    const env = collectEnvFromRows(card.querySelector('.env-section'));
+    delete env[key];
+    try{
+      await api(`/me/projects/${slug}/env`, {method: 'PUT', body: JSON.stringify({env})});
+      showToast('Переменная удалена');
+      loadProjects();
+    }catch(err){
+      showToast(err.message, true);
+    }
+  }
+
+  if(e.target.classList.contains('env-add-btn')){
+    const section = card.querySelector('.env-section');
+    const keyInput = section.querySelector('.env-new-key');
+    const valueInput = section.querySelector('.env-new-value');
+    const key = keyInput.value.trim();
+    if(!key){ showToast('Укажи ключ переменной', true); return; }
+    const env = collectEnvFromRows(section);
+    env[key] = valueInput.value;
     e.target.disabled = true;
     try{
       await api(`/me/projects/${slug}/env`, {method: 'PUT', body: JSON.stringify({env})});
-      showToast('Переменные сохранены — применены к запущенному контейнеру');
+      showToast('Переменная добавлена');
+      loadProjects();
     }catch(err){
       showToast(err.message, true);
     }finally{
@@ -698,22 +733,31 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
   }
 });
 
-function parseEnvText(text){
-  const env = {};
-  text.split('\n').forEach(line => {
-    const trimmed = line.trim();
-    if(!trimmed || trimmed.startsWith('#')) return;
-    const eq = trimmed.indexOf('=');
-    if(eq === -1) return;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if(key) env[key] = value;
-  });
-  return env;
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function envToText(env){
-  return Object.entries(env || {}).map(([k, v]) => `${k}=${v}`).join('\n');
+function renderEnvRowsHtml(env){
+  const entries = Object.entries(env || {});
+  if(entries.length === 0){
+    return '<div style="font-size:12px; color:var(--ink-soft); padding:2px 0 6px;">Переменных пока нет</div>';
+  }
+  return entries.map(([k, v]) => `
+    <div class="env-row" data-key="${escapeHtml(k)}" data-value="${escapeHtml(v)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; margin-bottom:6px;">
+      <span class="mono" style="font-weight:600; font-size:12px; color:var(--ink); min-width:100px; word-break:break-all;">${escapeHtml(k)}</span>
+      <span class="env-row-value mono" style="flex:1; font-size:12px; color:var(--ink-soft); word-break:break-all;">••••••••</span>
+      <button type="button" class="icon-btn env-reveal-btn" style="flex-shrink:0;">показать</button>
+      <button type="button" class="icon-btn env-delete-btn" style="flex-shrink:0; color:var(--danger); border-color:var(--danger);">удалить</button>
+    </div>
+  `).join('');
+}
+
+function collectEnvFromRows(section){
+  const env = {};
+  section.querySelectorAll('.env-row').forEach(row => {
+    env[row.dataset.key] = row.dataset.value;
+  });
+  return env;
 }
 
 document.getElementById('new-project-form').addEventListener('submit', async (e) => {
@@ -722,7 +766,7 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
   const slug = document.getElementById('np-slug').value.trim();
   const kind = document.getElementById('np-kind').value;
   const branch = document.getElementById('np-branch').value.trim() || 'main';
-  const env = parseEnvText(document.getElementById('np-env').value);
+  const env = Object.assign({}, npEnvVars);
 
   let repoField = {};
   if(currentSourceMode === 'github'){
@@ -769,6 +813,8 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
     document.getElementById('np-archive-dropzone-text').textContent = 'Перетащи ZIP сюда или нажми, чтобы выбрать файл';
     document.getElementById('np-archive-dropzone').style.borderColor = 'var(--line)';
     document.getElementById('np-branch').value = 'main';
+    npEnvVars = {};
+    renderNpEnvRows();
     loadProjects();
   }catch(err){
     showToast(err.message, true);
@@ -792,6 +838,42 @@ function setSourceMode(mode){
 
 document.querySelectorAll('.source-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => setSourceMode(btn.dataset.source));
+});
+
+// ---------- env vars for the new-project creation form ----------
+
+let npEnvVars = {};
+
+function renderNpEnvRows(){
+  const container = document.getElementById('np-env-rows');
+  const entries = Object.entries(npEnvVars);
+  if(entries.length === 0){ container.innerHTML = ''; return; }
+  container.innerHTML = entries.map(([k, v]) => `
+    <div class="env-row" data-key="${escapeHtml(k)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; margin-bottom:6px;">
+      <span class="mono" style="font-weight:600; font-size:12px; color:var(--ink); min-width:100px; word-break:break-all;">${escapeHtml(k)}</span>
+      <span class="mono" style="flex:1; font-size:12px; color:var(--ink-soft); word-break:break-all;">${escapeHtml(v)}</span>
+      <button type="button" class="icon-btn np-env-remove-btn" data-key="${escapeHtml(k)}" style="flex-shrink:0; color:var(--danger); border-color:var(--danger);">удалить</button>
+    </div>
+  `).join('');
+}
+
+document.getElementById('np-env-add-btn').addEventListener('click', () => {
+  const keyInput = document.getElementById('np-env-new-key');
+  const valueInput = document.getElementById('np-env-new-value');
+  const key = keyInput.value.trim();
+  if(!key){ showToast('Укажи ключ переменной', true); return; }
+  npEnvVars[key] = valueInput.value;
+  keyInput.value = '';
+  valueInput.value = '';
+  keyInput.focus();
+  renderNpEnvRows();
+});
+
+document.getElementById('np-env-rows').addEventListener('click', (e) => {
+  if(e.target.classList.contains('np-env-remove-btn')){
+    delete npEnvVars[e.target.dataset.key];
+    renderNpEnvRows();
+  }
 });
 
 // ---------- ZIP dropzone (click-to-browse + drag-and-drop) ----------
