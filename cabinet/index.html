@@ -767,6 +767,10 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
   const kind = document.getElementById('np-kind').value;
   const branch = document.getElementById('np-branch').value.trim() || 'main';
   const env = Object.assign({}, npEnvVars);
+  const pendingKey = document.getElementById('np-env-new-key').value.trim();
+  if(pendingKey){
+    env[pendingKey] = document.getElementById('np-env-new-value').value;
+  }
 
   let repoField = {};
   if(currentSourceMode === 'github'){
