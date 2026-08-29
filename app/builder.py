@@ -118,9 +118,10 @@ def detect_profile(slug: str) -> ProjectProfile:
         )
 
     if (root / "requirements.txt").exists() or (root / "pyproject.toml").exists():
+        entrypoint = _detect_python_entrypoint(root)
         return ProjectProfile(
             kind="python",
-            dockerfile=_PYTHON_DOCKERFILE,
+            dockerfile=_PYTHON_DOCKERFILE_TEMPLATE.format(entrypoint=entrypoint),
             internal_port=8000,
         )
 
@@ -134,6 +135,23 @@ def detect_profile(slug: str) -> ProjectProfile:
     raise BuildError(
         "Не удалось определить тип проекта: нет Dockerfile, package.json, "
         "requirements.txt/pyproject.toml или index.html в корне репозитория."
+    )
+
+
+# Порядок важен — main.py остаётся самым приоритетным (наша собственная
+# конвенция для CLI/ZIP-проектов без своего Dockerfile), но если пользователь
+# принёс типовой шаблон бота откуда-то ещё, который называет входной файл
+# иначе — подхватываем и его, вместо того чтобы молча падать.
+_PYTHON_ENTRYPOINT_CANDIDATES = ["main.py", "bot.py", "app.py", "run.py", "__main__.py"]
+
+
+def _detect_python_entrypoint(root: Path) -> str:
+    for name in _PYTHON_ENTRYPOINT_CANDIDATES:
+        if (root / name).exists():
+            return name
+    raise BuildError(
+        "Не найден входной файл Python-проекта — ожидается один из: "
+        + ", ".join(_PYTHON_ENTRYPOINT_CANDIDATES)
     )
 
 
@@ -152,13 +170,13 @@ EXPOSE 3000
 CMD ["npm", "start"]
 """
 
-_PYTHON_DOCKERFILE = """FROM python:3.12-slim
+_PYTHON_DOCKERFILE_TEMPLATE = """FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt* pyproject.toml* ./
 RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
 COPY . .
 EXPOSE 8000
-CMD ["python", "main.py"]
+CMD ["python", "{entrypoint}"]
 """
 
 _STATIC_DOCKERFILE = """FROM nginx:alpine

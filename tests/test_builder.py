@@ -99,6 +99,7 @@ def test_ensure_dockerfile_writes_generated_file(tmp_path):
     d = builder.project_dir(slug)
     d.mkdir(parents=True)
     (d / "requirements.txt").write_text("fastapi\n")
+    (d / "main.py").write_text("print('hi')\n")
     profile = builder.detect_profile(slug)
     builder.ensure_dockerfile(slug, profile)
     assert (d / "Dockerfile").exists()

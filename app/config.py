@@ -82,3 +82,15 @@ SMTP_USER = os.getenv("VERF_SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("VERF_SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("VERF_SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("VERF_SMTP_FROM_NAME", "VERF")
+
+# --- Telegram Bot API connectivity fix ---
+# Some of Telegram's IP ranges are unreliably routed from this hosting
+# network (confirmed by hand: some of api.telegram.org's several IPs work,
+# others time out — the *specific* working one has actually differed
+# between separate tests). Rather than making every bot author patch their
+# own code with an /etc/hosts hack, every container gets this same mapping
+# for free via Docker's extra_hosts — harmless no-op for projects that never
+# talk to Telegram, fixes it automatically for the ones that do.
+# If this specific IP eventually stops being reliable too, update it here —
+# no code changes needed anywhere else.
+TELEGRAM_API_PINNED_IP = os.getenv("VERF_TELEGRAM_API_PINNED_IP", "149.154.167.220")

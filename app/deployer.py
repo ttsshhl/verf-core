@@ -14,6 +14,7 @@ from app.config import (
     TRAEFIK_CERTRESOLVER,
     DEFAULT_MEM_LIMIT,
     DEFAULT_CPU_QUOTA,
+    TELEGRAM_API_PINNED_IP,
 )
 
 
@@ -137,6 +138,7 @@ def run_container(
             cpu_period=100_000,
             cpu_quota=cpu_quota,
             restart_policy={"Name": "unless-stopped"},
+            extra_hosts={"api.telegram.org": TELEGRAM_API_PINNED_IP},
         )
     except Exception as exc:
         if old is not None:
