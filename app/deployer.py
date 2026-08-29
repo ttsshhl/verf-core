@@ -161,3 +161,21 @@ def stop_and_remove(slug: str) -> None:
         c.remove()
     except Exception:
         pass  # already gone — deleting a project should be idempotent
+
+
+def get_container_logs(slug: str, tail: int = 200) -> str:
+    """Recent stdout/stderr from the project's running container — powers
+    the cabinet's log viewer, so users can see crashes/errors themselves
+    instead of needing someone with server SSH access to run `docker logs`.
+    """
+    client = _client()
+    try:
+        container = client.containers.get(f"verf-{slug}")
+    except Exception:
+        raise DeployError("Контейнер не найден — возможно, ещё не было ни одного успешного деплоя")
+
+    try:
+        raw = container.logs(tail=tail, timestamps=False)
+    except Exception as exc:
+        raise DeployError(f"Не удалось получить логи: {exc}")
+    return raw.decode("utf-8", errors="replace")

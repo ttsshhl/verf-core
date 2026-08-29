@@ -606,6 +606,11 @@ function renderProjects(projects){
         <div class="deploys" data-slug="${p.slug}">
           <span style="font-size:12.5px; color:var(--ink-soft);">Загрузка истории деплоев…</span>
         </div>
+
+        <div class="logs-section" data-slug="${p.slug}" style="margin-top:12px;">
+          <button type="button" class="icon-btn logs-toggle-btn">показать логи контейнера</button>
+          <div class="logs-box mono" style="display:none; margin-top:8px; background:var(--ink); color:#B9C6D6; border-radius:4px; padding:10px 12px; font-size:11.5px; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
+        </div>
       </div>
     </div>
   `).join('');
@@ -729,6 +734,26 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
       showToast(err.message, true);
     }finally{
       e.target.disabled = false;
+    }
+  }
+
+  if(e.target.classList.contains('logs-toggle-btn')){
+    const box = card.querySelector('.logs-box');
+    const willShow = box.style.display === 'none';
+    if(!willShow){
+      box.style.display = 'none';
+      e.target.textContent = 'показать логи контейнера';
+      return;
+    }
+    box.style.display = 'block';
+    e.target.textContent = 'скрыть логи';
+    box.textContent = 'Загрузка…';
+    try{
+      const data = await api(`/me/projects/${slug}/logs?lines=200`);
+      box.textContent = data.logs && data.logs.trim() ? data.logs : '(логов пока нет)';
+      box.scrollTop = box.scrollHeight;
+    }catch(err){
+      box.textContent = 'Не удалось загрузить логи: ' + err.message;
     }
   }
 });

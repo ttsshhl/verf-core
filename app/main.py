@@ -306,6 +306,27 @@ def get_my_deployment(deployment_id: str, user: User = Depends(get_current_user)
     return _to_deployment_out(deployment)
 
 
+@app.get("/me/projects/{slug}/logs")
+def get_project_logs(
+    slug: str, lines: int = 200, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Live stdout/stderr from the project's running container — separate
+    from deployment build logs, which only cover the build/start sequence
+    and stop once the container is up. This is what a crashed bot's
+    traceback actually shows up in.
+    """
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+
+    from app import deployer
+    try:
+        logs = deployer.get_container_logs(project.slug, tail=min(max(lines, 1), 1000))
+    except deployer.DeployError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"logs": logs}
+
+
 @app.post("/me/projects/{slug}/domain", response_model=ProjectOut)
 def set_custom_domain(
     slug: str, payload: DomainRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)
