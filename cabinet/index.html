@@ -332,7 +332,7 @@
               <label>Переменные окружения <span style="color:var(--ink-soft); font-weight:400;">(необязательно)</span></label>
               <div id="np-env-rows" style="margin-top:5px;"></div>
               <div style="display:flex; gap:6px; margin-top:4px;">
-                <input type="text" id="np-env-new-key" value="BOT_TOKEN" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                <input type="text" id="np-env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
                 <input type="text" id="np-env-new-value" placeholder="ЗНАЧЕНИЕ ПЕРЕМЕННОЙ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
                 <button type="button" class="btn btn-ghost btn-sm" id="np-env-add-btn" style="flex-shrink:0;">Добавить</button>
               </div>
@@ -819,6 +819,7 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
     document.getElementById('np-archive-dropzone').style.borderColor = 'var(--line)';
     document.getElementById('np-branch').value = 'main';
     npEnvVars = {};
+    lastAppliedEnvDefault = KIND_ENV_DEFAULTS[document.getElementById('np-kind').value] || '';
     renderNpEnvRows();
     loadProjects();
   }catch(err){
@@ -848,6 +849,21 @@ document.querySelectorAll('.source-tab-btn').forEach(btn => {
 // ---------- env vars for the new-project creation form ----------
 
 let npEnvVars = {};
+
+// Подсказываем разумный ключ переменной по выбранному типу проекта —
+// но только пока пользователь сам не вписал что-то своё в это поле.
+const KIND_ENV_DEFAULTS = {site: '', bot: 'BOT_TOKEN', backend: ''};
+let lastAppliedEnvDefault = KIND_ENV_DEFAULTS[document.getElementById('np-kind').value] || '';
+
+document.getElementById('np-kind').addEventListener('change', (e) => {
+  const keyInput = document.getElementById('np-env-new-key');
+  if(keyInput.value === lastAppliedEnvDefault){
+    const newDefault = KIND_ENV_DEFAULTS[e.target.value] || '';
+    keyInput.value = newDefault;
+    lastAppliedEnvDefault = newDefault;
+  }
+});
+
 
 function renderNpEnvRows(){
   const container = document.getElementById('np-env-rows');
