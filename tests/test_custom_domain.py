@@ -54,7 +54,7 @@ def client(tmp_path, monkeypatch):
         app.dependency_overrides.clear()
 
 
-def _register(client, email, password="correct-horse-battery"):
+def _register(client, email, password="Correct-Horse1!"):
     r = client.post("/auth/register", json={"email": email, "password": password})
     return r.json()["access_token"]
 
@@ -406,3 +406,38 @@ def test_update_env_on_never_deployed_project_does_not_crash(client):
     )
     assert r.status_code == 200
     assert r.json()["env"] == {"X": "y"}
+
+
+# ---------- deleting a project that has deployment history ----------
+
+def test_delete_project_with_deployment_history(client, monkeypatch, fake_upstream):
+    """Regression test: deleting a project that has at least one real
+    Deployment row used to fail with
+    'NOT NULL constraint failed: deployments.project_id' — SQLAlchemy's
+    default relationship behaviour tries to null out the FK on child rows
+    instead of deleting them. cascade="all, delete-orphan" on
+    Project.deployments fixes this."""
+    from app import deployer
+    monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
+    monkeypatch.setattr(deployer, "run_container", lambda slug, image, port, env, **kw: "fake-container-id")
+    monkeypatch.setattr(deployer, "stop_and_remove", lambda slug: None)
+
+    token = _register(client, "deletewithhistory@example.com")
+    proj = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "has-deploys", "repo_url": str(fake_upstream), "branch": "main", "kind": "site"},
+    ).json()
+
+    body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
+    sig = _sign(proj["webhook_secret"], body)
+    r = client.post(
+        "/webhook/github/has-deploys", content=body,
+        headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": "push"},
+    )
+    assert r.status_code == 200
+
+    deploys = client.get("/me/projects/has-deploys/deployments", headers=_auth_headers(token)).json()
+    assert len(deploys) == 1  # confirms a real Deployment row exists before we try deleting
+
+    r = client.delete("/me/projects/has-deploys", headers=_auth_headers(token))
+    assert r.status_code == 200, r.text

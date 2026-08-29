@@ -94,7 +94,10 @@ class Project(Base):
     created_at = Column(DateTime, default=utcnow)
 
     owner = relationship("User", back_populates="projects")
-    deployments = relationship("Deployment", back_populates="project", order_by="Deployment.created_at.desc()")
+    deployments = relationship(
+        "Deployment", back_populates="project", order_by="Deployment.created_at.desc()",
+        cascade="all, delete-orphan",
+    )
 
 
 class Deployment(Base):
