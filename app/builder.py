@@ -61,10 +61,16 @@ def replace_from_archive(slug: str, archive_path: Path) -> str:
     except zipfile.BadZipFile as exc:
         raise BuildError(f"Не удалось распаковать архив: {exc}")
 
+    _strip_archive_junk(target)
+
     # If the zip contained a single top-level folder (the common case when
     # someone zips a project folder in Finder/Explorer), flatten it so
     # project files end up directly in project_dir instead of nested one
-    # level deeper than every other deploy path expects.
+    # level deeper than every other deploy path expects. Junk entries
+    # (above) are stripped *before* this check specifically because macOS's
+    # built-in "Compress" adds a __MACOSX folder alongside the real one —
+    # without stripping it first, there'd be two top-level entries instead
+    # of one, and this flattening would never trigger.
     entries = list(target.iterdir())
     if len(entries) == 1 and entries[0].is_dir():
         inner = entries[0]
@@ -74,6 +80,23 @@ def replace_from_archive(slug: str, archive_path: Path) -> str:
 
     digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     return f"upload-{digest[:12]}"
+
+
+_ARCHIVE_JUNK_NAMES = {"__MACOSX", ".DS_Store", "Thumbs.db", "desktop.ini"}
+
+
+def _strip_archive_junk(target: Path) -> None:
+    """Removes metadata cruft that common zip tools (macOS Finder, Windows
+    Explorer) add alongside real project files — never part of the actual
+    project, and left in place they break both flattening (see above) and,
+    for __MACOSX specifically, could confuse profile detection if it ever
+    contains a stray file matching one of our detection filenames."""
+    for entry in list(target.iterdir()):
+        if entry.name in _ARCHIVE_JUNK_NAMES:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
 
 
 def _safe_extract(zf: zipfile.ZipFile, target: Path) -> None:

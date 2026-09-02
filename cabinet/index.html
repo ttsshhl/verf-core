@@ -641,13 +641,15 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
         if(deploys.length === 0){
           box.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">Пока не было ни одного деплоя — сделай git push в подключённый репозиторий.</span>';
         }else{
-          box.innerHTML = deploys.map(d => `
-            <div class="deploy-row">
+          box.innerHTML = deploys.map((d, i) => `
+            <div class="deploy-row" style="${d.status === 'failed' ? 'cursor:pointer;' : ''} flex-wrap:wrap;" ${d.status === 'failed' ? `data-deploy-toggle="deploy-log-${i}"` : ''}>
               <span class="status-dot status-${d.status}"></span>
               <span>${STATUS_LABELS[d.status] || d.status}</span>
               <span style="color:var(--ink-soft);">${d.commit_sha ? d.commit_sha.slice(0,8) : ''}</span>
               <span style="color:var(--ink-soft); margin-left:auto;">${new Date(d.created_at).toLocaleString('ru-RU')}</span>
+              ${d.status === 'failed' ? '<span style="color:var(--danger); font-size:11px;">показать причину ▾</span>' : ''}
             </div>
+            ${d.status === 'failed' ? `<div id="deploy-log-${i}" style="display:none; margin:4px 0 8px; padding:8px 10px; background:var(--ink); color:#B9C6D6; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto;">${escapeHtml(d.log || '(лог пуст)')}</div>` : ''}
           `).join('');
         }
       }catch(err){
@@ -735,6 +737,13 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
     }finally{
       e.target.disabled = false;
     }
+  }
+
+  if(e.target.closest('[data-deploy-toggle]')){
+    const row = e.target.closest('[data-deploy-toggle]');
+    const logDiv = document.getElementById(row.dataset.deployToggle);
+    if(logDiv) logDiv.style.display = logDiv.style.display === 'none' ? 'block' : 'none';
+    return;
   }
 
   if(e.target.classList.contains('logs-toggle-btn')){
