@@ -151,13 +151,35 @@ def detect_profile(slug: str) -> ProjectProfile:
     if (root / "index.html").exists():
         return ProjectProfile(
             kind="static",
-            dockerfile=_STATIC_DOCKERFILE,
+            dockerfile=_STATIC_DOCKERFILE_TEMPLATE.format(index_fixup=""),
             internal_port=80,
+        )
+
+    # No index.html — but if there's exactly one other HTML file, that's
+    # almost certainly meant to be the site (a single-page site someone
+    # named after its content, e.g. "pure-cleaning.html", rather than the
+    # platform convention). Copy it to index.html at build time so nginx's
+    # default document resolution just works, instead of failing outright.
+    html_files = sorted(
+        p.name for p in root.iterdir() if p.is_file() and p.suffix.lower() in (".html", ".htm")
+    )
+    if len(html_files) == 1:
+        return ProjectProfile(
+            kind="static",
+            dockerfile=_STATIC_DOCKERFILE_TEMPLATE.format(
+                index_fixup=f"RUN cp /usr/share/nginx/html/{html_files[0]} /usr/share/nginx/html/index.html\n"
+            ),
+            internal_port=80,
+        )
+    if len(html_files) > 1:
+        raise BuildError(
+            "Несколько HTML-файлов в корне, но ни один не называется index.html — "
+            "переименуй главную страницу в index.html, чтобы платформа знала, что открывать по умолчанию."
         )
 
     raise BuildError(
         "Не удалось определить тип проекта: нет Dockerfile, package.json, "
-        "requirements.txt/pyproject.toml или index.html в корне репозитория."
+        "requirements.txt/pyproject.toml или HTML-файла в корне репозитория."
     )
 
 
@@ -202,7 +224,7 @@ EXPOSE 8000
 CMD ["python", "{entrypoint}"]
 """
 
-_STATIC_DOCKERFILE = """FROM nginx:alpine
+_STATIC_DOCKERFILE_TEMPLATE = """FROM nginx:alpine
 COPY . /usr/share/nginx/html
-EXPOSE 80
+{index_fixup}EXPOSE 80
 """

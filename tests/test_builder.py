@@ -104,3 +104,54 @@ def test_ensure_dockerfile_writes_generated_file(tmp_path):
     builder.ensure_dockerfile(slug, profile)
     assert (d / "Dockerfile").exists()
     assert "python" in (d / "Dockerfile").read_text().lower()
+
+
+# ---------- flexible static-site entrypoint detection ----------
+
+def test_detects_index_html_as_before(tmp_path, monkeypatch):
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("static-index")
+    root.mkdir(parents=True)
+    (root / "index.html").write_text("<h1>hi</h1>")
+    profile = builder.detect_profile("static-index")
+    assert profile.kind == "static"
+    assert "RUN cp" not in profile.dockerfile  # no fixup needed — already named correctly
+
+
+def test_detects_single_nonstandard_html_file_as_static_entrypoint(tmp_path, monkeypatch):
+    """The real-world case this fixes: a single-page site named after its
+    content ("pure-cleaning.html") instead of the platform convention."""
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("static-custom-name")
+    root.mkdir(parents=True)
+    (root / "pure-cleaning.html").write_text("<h1>Clean!</h1>")
+    profile = builder.detect_profile("static-custom-name")
+    assert profile.kind == "static"
+    assert "cp /usr/share/nginx/html/pure-cleaning.html /usr/share/nginx/html/index.html" in profile.dockerfile
+
+
+def test_multiple_html_files_without_index_raises_clear_error(tmp_path, monkeypatch):
+    """Genuinely ambiguous — which page is "home"? Don't guess."""
+    from app import builder
+    from app.builder import BuildError
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("static-ambiguous")
+    root.mkdir(parents=True)
+    (root / "about.html").write_text("<h1>About</h1>")
+    (root / "contact.html").write_text("<h1>Contact</h1>")
+    with pytest.raises(BuildError) as exc_info:
+        builder.detect_profile("static-ambiguous")
+    assert "index.html" in str(exc_info.value)
+
+
+def test_no_html_at_all_still_raises_original_error(tmp_path, monkeypatch):
+    from app import builder
+    from app.builder import BuildError
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("static-none")
+    root.mkdir(parents=True)
+    (root / "readme.txt").write_text("hi")
+    with pytest.raises(BuildError):
+        builder.detect_profile("static-none")
