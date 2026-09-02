@@ -577,8 +577,12 @@ function renderProjects(projects){
           ${p.custom_domain ? `
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:#fff;">
             <span style="font-size:12.5px;">🌐 <a href="${p.custom_domain_url}" target="_blank" rel="noopener" style="color:var(--brass);">${p.custom_domain}</a></span>
-            <button class="icon-btn domain-remove-btn" style="color:var(--danger); border-color:var(--danger);">отвязать</button>
+            <div style="display:flex; gap:6px;">
+              <button class="icon-btn domain-retry-btn">проверить сертификат ещё раз</button>
+              <button class="icon-btn domain-remove-btn" style="color:var(--danger); border-color:var(--danger);">отвязать</button>
+            </div>
           </div>
+          <div style="margin-top:6px; font-size:11px; color:var(--ink-soft);">Если сайт не открывается по домену — обычно это ещё не выпустился сертификат (DNS должен успеть распространиться первым). Нажми «проверить ещё раз» через пару минут после привязки, если сразу не заработало.</div>
           ` : `
           <div style="display:flex; gap:8px;">
             <input type="text" class="domain-input" placeholder="example.com" style="flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-size:12.5px;">
@@ -693,6 +697,18 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
       loadProjects();
     }catch(err){
       showToast(err.message, true);
+    }
+  }
+
+  if(e.target.classList.contains('domain-retry-btn')){
+    e.target.disabled = true;
+    try{
+      await api(`/me/projects/${slug}/domain/retry-cert`, {method: 'POST'});
+      showToast('Попробовали ещё раз — если DNS уже распространился, сертификат появится в течение пары минут');
+    }catch(err){
+      showToast(err.message, true);
+    }finally{
+      e.target.disabled = false;
     }
   }
 

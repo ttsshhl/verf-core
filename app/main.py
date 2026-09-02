@@ -361,6 +361,27 @@ def remove_custom_domain(slug: str, user: User = Depends(get_current_user), db: 
     return _to_project_out(project)
 
 
+@app.post("/me/projects/{slug}/domain/retry-cert", response_model=ProjectOut)
+def retry_custom_domain_cert(slug: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Traefik only attempts the ACME challenge for a new custom-domain
+    router once, right when it first appears — if the domain's DNS hadn't
+    propagated yet at that exact moment (a very common race with a fresh
+    domain), it doesn't spontaneously retry again on its own for a long
+    time. Recreating just this project's container (same image, same
+    everything) gives Traefik's Docker provider a fresh event to notice
+    and try the certificate again — scoped to this one project, without
+    restarting Traefik itself or touching anyone else's routing.
+    """
+    project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+    if not project.custom_domain:
+        raise HTTPException(status_code=400, detail="У проекта не привязан домен")
+
+    _redeploy_running_container(db, project)
+    return _to_project_out(project)
+
+
 @app.put("/me/projects/{slug}/env", response_model=ProjectOut)
 def update_env(
     slug: str, payload: EnvUpdateRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)

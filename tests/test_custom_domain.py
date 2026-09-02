@@ -441,3 +441,63 @@ def test_delete_project_with_deployment_history(client, monkeypatch, fake_upstre
 
     r = client.delete("/me/projects/has-deploys", headers=_auth_headers(token))
     assert r.status_code == 200, r.text
+
+
+# ---------- retry-cert self-service (nudges Traefik to retry ACME) ----------
+
+def test_retry_cert_requires_ownership(client):
+    token_a = _register(client, "retryowner@example.com")
+    token_b = _register(client, "retryattacker@example.com")
+    client.post("/me/projects", headers=_auth_headers(token_a), json={"slug": "proj1", "kind": "site"})
+    client.post("/me/projects/proj1/domain", headers=_auth_headers(token_a), json={"domain": "example.com"})
+
+    r = client.post("/me/projects/proj1/domain/retry-cert", headers=_auth_headers(token_b))
+    assert r.status_code == 404
+
+
+def test_retry_cert_requires_auth(client):
+    r = client.post("/me/projects/whatever/domain/retry-cert")
+    assert r.status_code == 401
+
+
+def test_retry_cert_requires_domain_to_be_set(client):
+    token = _register(client, "retrynodomain@example.com")
+    client.post("/me/projects", headers=_auth_headers(token), json={"slug": "proj1", "kind": "site"})
+    r = client.post("/me/projects/proj1/domain/retry-cert", headers=_auth_headers(token))
+    assert r.status_code == 400
+
+
+def test_retry_cert_recreates_running_container(client, monkeypatch, fake_upstream):
+    """The actual point of this endpoint: recreating the container gives
+    Traefik's Docker provider a fresh event to notice and retry the ACME
+    challenge for a domain whose DNS wasn't ready the first time."""
+    from app import deployer
+    monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
+
+    recreate_count = {"n": 0}
+
+    def fake_run_container(slug, image, port, env, mem_limit=None, cpu_quota=None, custom_domain=None):
+        recreate_count["n"] += 1
+        return "fake-container-id"
+
+    monkeypatch.setattr(deployer, "run_container", fake_run_container)
+
+    token = _register(client, "retrytrigger@example.com")
+    proj = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": "retry-proj", "repo_url": str(fake_upstream), "branch": "main", "kind": "site"},
+    ).json()
+
+    body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
+    sig = _sign(proj["webhook_secret"], body)
+    client.post(
+        "/webhook/github/retry-proj", content=body,
+        headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": "push"},
+    )
+    client.post("/me/projects/retry-proj/domain", headers=_auth_headers(token), json={"domain": "example.com"})
+    calls_after_attach = recreate_count["n"]
+    assert calls_after_attach >= 2  # initial deploy + redeploy-on-domain-attach
+
+    r = client.post("/me/projects/retry-proj/domain/retry-cert", headers=_auth_headers(token))
+    assert r.status_code == 200, r.text
+    assert recreate_count["n"] == calls_after_attach + 1  # exactly one more recreate, for the retry
