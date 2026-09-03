@@ -94,3 +94,10 @@ SMTP_FROM_NAME = os.getenv("VERF_SMTP_FROM_NAME", "VERF")
 # If this specific IP eventually stops being reliable too, update it here —
 # no code changes needed anywhere else.
 TELEGRAM_API_PINNED_IP = os.getenv("VERF_TELEGRAM_API_PINNED_IP", "149.154.167.220")
+
+# --- Admin Telegram alerts (new registrations, server health) ---
+# Separate bot from any customer-facing bot — create a small dedicated one
+# via @BotFather. Optional: if unset, alerts just silently no-op, same
+# graceful-degradation pattern as SMTP/GitHub OAuth elsewhere in this file.
+TELEGRAM_ALERTS_BOT_TOKEN = os.getenv("VERF_TELEGRAM_ALERTS_BOT_TOKEN", "")
+TELEGRAM_ALERTS_CHAT_ID = os.getenv("VERF_TELEGRAM_ALERTS_CHAT_ID", "")

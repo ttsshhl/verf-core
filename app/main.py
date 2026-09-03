@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app import auth, billing, github as gh, notifications
+from app import auth, billing, github as gh, notifications, alerts
 from app.config import (
     ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS,
     MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR,
@@ -114,6 +114,7 @@ def register(payload: UserCreate, background_tasks: BackgroundTasks, db: Session
     db.commit()
     db.refresh(user)
     background_tasks.add_task(_send_email_best_effort, notifications.send_welcome_email, user.email)
+    background_tasks.add_task(_send_alert_best_effort, alerts.new_user_registered, user.email)
     return TokenOut(access_token=auth.create_access_token(user.id))
 
 
@@ -574,6 +575,18 @@ def _send_email_best_effort(send_fn, *args) -> None:
         print(f"[email] отправка не удалась: {exc}")
     except Exception as exc:
         print(f"[email] неожиданная ошибка при отправке: {exc}")
+
+
+def _send_alert_best_effort(send_fn, *args) -> None:
+    """Same best-effort convention as _send_email_best_effort, for admin
+    Telegram alerts — a missing/misconfigured alerts bot must never affect
+    the request that triggered the alert."""
+    try:
+        send_fn(*args)
+    except alerts.AlertError as exc:
+        print(f"[alert] отправка не удалась: {exc}")
+    except Exception as exc:
+        print(f"[alert] неожиданная ошибка при отправке: {exc}")
 
 
 # ---------- Admin (existing, unchanged behaviour) ----------
