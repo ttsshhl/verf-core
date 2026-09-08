@@ -6,6 +6,9 @@ Not exercised by the test suite in an environment without Docker; the
 webhook/builder logic above it is fully covered instead, and this module
 is kept thin so the untestable part is as small as possible.
 """
+import socket
+import time
+
 from app.builder import project_dir
 from app.config import (
     DOCKER_NETWORK,
@@ -150,6 +153,32 @@ def run_container(
         old.remove()
 
     return new.id
+
+
+def wait_for_container_port(slug: str, port: int, timeout: float = 15.0) -> bool:
+    """Best-effort TCP check that something is actually listening on the
+    port we're about to route traffic to.
+
+    A real incident is what this fixes: a project with its own Dockerfile
+    whose app listened on 3000, while Traefik's service label pointed at
+    8080 (the old blind default) — the deployment showed "running" the
+    whole time even though the site was Bad Gateway from the very first
+    second, discovered only when someone happened to visit it.
+
+    Connects by the container's own Docker-network hostname
+    ("verf-{slug}") — verf-core sits on the same verf-net network as every
+    project container, the same way Traefik itself reaches them, so no
+    extra network access is needed for this check.
+    """
+    host = f"verf-{slug}"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1.5):
+                return True
+        except OSError:
+            time.sleep(0.5)
+    return False
 
 
 def stop_and_remove(slug: str) -> None:

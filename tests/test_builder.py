@@ -155,3 +155,56 @@ def test_no_html_at_all_still_raises_original_error(tmp_path, monkeypatch):
     (root / "readme.txt").write_text("hi")
     with pytest.raises(BuildError):
         builder.detect_profile("static-none")
+
+
+# ---------- port detection from user-supplied Dockerfile (EXPOSE) ----------
+
+def test_detects_exposed_port_from_own_dockerfile(tmp_path, monkeypatch):
+    """Regression test for a real incident: a project with its own
+    Dockerfile whose app listened on 3000, while we blindly routed
+    Traefik to 8080 — Bad Gateway until manually diagnosed."""
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("own-dockerfile-3000")
+    root.mkdir(parents=True)
+    (root / "Dockerfile").write_text("FROM node:20-alpine\nEXPOSE 3000\nCMD [\"node\", \"server.mjs\"]\n")
+    profile = builder.detect_profile("own-dockerfile-3000")
+    assert profile.kind == "dockerfile"
+    assert profile.internal_port == 3000
+
+
+def test_falls_back_to_8080_when_no_expose_present(tmp_path, monkeypatch):
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("own-dockerfile-noexpose")
+    root.mkdir(parents=True)
+    (root / "Dockerfile").write_text("FROM alpine\nCMD [\"true\"]\n")
+    profile = builder.detect_profile("own-dockerfile-noexpose")
+    assert profile.internal_port == 8080
+
+
+def test_last_expose_wins_when_multiple_present(tmp_path, monkeypatch):
+    """Matches Docker's own behaviour — the last EXPOSE is the one that
+    actually takes effect if a Dockerfile declares more than one."""
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("own-dockerfile-multi")
+    root.mkdir(parents=True)
+    (root / "Dockerfile").write_text("FROM alpine\nEXPOSE 8080\nEXPOSE 5000\nCMD [\"true\"]\n")
+    profile = builder.detect_profile("own-dockerfile-multi")
+    assert profile.internal_port == 5000
+
+
+def test_expose_detection_is_case_insensitive(tmp_path, monkeypatch):
+    from app import builder
+    monkeypatch.setattr(builder, "WORKSPACE_DIR", tmp_path / "workspace")
+    root = builder.project_dir("own-dockerfile-lowercase")
+    root.mkdir(parents=True)
+    (root / "Dockerfile").write_text("from alpine\nexpose 4000\ncmd [\"true\"]\n")
+    profile = builder.detect_profile("own-dockerfile-lowercase")
+    assert profile.internal_port == 4000
+
+
+def test_expose_detection_ignores_leading_whitespace():
+    from app.builder import _detect_exposed_port
+    assert _detect_exposed_port("FROM alpine\n    EXPOSE 9000\n") == 9000

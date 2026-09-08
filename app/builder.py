@@ -4,6 +4,7 @@ Everything in this module is pure filesystem/subprocess work — no Docker
 required — so it's fully testable without a Docker daemon.
 """
 import hashlib
+import re
 import shutil
 import subprocess
 import zipfile
@@ -126,12 +127,33 @@ class ProjectProfile:
     internal_port: int  # port the app is expected to listen on inside the container
 
 
+_EXPOSE_RE = re.compile(r"^\s*EXPOSE\s+(\d+)", re.MULTILINE | re.IGNORECASE)
+
+
+def _detect_exposed_port(dockerfile_text: str, default: int = 8080) -> int:
+    """Reads the port a user-supplied Dockerfile actually declares via
+    EXPOSE, instead of blindly assuming 8080 — a real incident (Bad Gateway
+    on a project whose app listened on 3000 while we routed Traefik to
+    8080) showed this guess is wrong often enough to be worth fixing
+    properly. If there are multiple EXPOSE lines, the last one wins —
+    matches Docker's own behaviour when a Dockerfile declares more than
+    one. Falls back to 8080 only when no EXPOSE line exists at all.
+    """
+    matches = _EXPOSE_RE.findall(dockerfile_text)
+    if matches:
+        return int(matches[-1])
+    return default
+
+
 def detect_profile(slug: str) -> ProjectProfile:
     """Inspect the cloned repo and decide how to build/run it."""
     root = project_dir(slug)
 
     if (root / "Dockerfile").exists():
-        return ProjectProfile(kind="dockerfile", dockerfile="", internal_port=8080)
+        dockerfile_text = (root / "Dockerfile").read_text(errors="replace")
+        return ProjectProfile(
+            kind="dockerfile", dockerfile="", internal_port=_detect_exposed_port(dockerfile_text)
+        )
 
     if (root / "package.json").exists():
         return ProjectProfile(

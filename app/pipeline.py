@@ -88,12 +88,23 @@ def _run_pipeline(db: Session, project: Project, deployment: Deployment, get_sou
         deployment.container_id = container_id
         deployment.port = profile.internal_port
         log(f"→ Контейнер запущен: {container_id[:12]} (тариф «{owner_plan}»: {mem_limit} RAM)")
-        if project.custom_domain:
-            log(f"→ Домен: {project.custom_domain} (и https://{project.slug}.{{DOMAIN}})")
-        else:
-            log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
 
-        set_status(DeployStatus.running)
+        log(f"→ Проверяю, что приложение отвечает на порту {profile.internal_port}…")
+        if deployer.wait_for_container_port(project.slug, profile.internal_port):
+            log("✓ Приложение отвечает")
+            if project.custom_domain:
+                log(f"→ Домен: {project.custom_domain} (и https://{project.slug}.{{DOMAIN}})")
+            else:
+                log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
+            set_status(DeployStatus.running)
+        else:
+            log(
+                f"✗ Приложение не отвечает на порту {profile.internal_port} — контейнер запущен, "
+                f"но никто не слушает на этом порту. Проверь: правильный ли порт в EXPOSE "
+                f"(если свой Dockerfile) или в переменной PORT (если приложение читает порт "
+                f"из окружения) — платформа маршрутизирует трафик именно на {profile.internal_port}."
+            )
+            set_status(DeployStatus.failed)
 
     except BuildError as exc:
         log(f"✗ Ошибка сборки: {exc}")
