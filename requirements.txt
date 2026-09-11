@@ -10,3 +10,4 @@ bcrypt>=4.1
 pyjwt>=2.9
 requests>=2.32
 python-multipart>=0.0.9
+alembic>=1.13
