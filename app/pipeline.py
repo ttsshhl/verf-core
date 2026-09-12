@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import builder
 from app.builder import BuildError
-from app.models import Deployment, DeployStatus, Project
+from app.models import Deployment, DeployStatus, Project, ProjectKind
 
 
 def run_deploy(db: Session, project: Project, deployment: Deployment) -> None:
@@ -89,22 +89,33 @@ def _run_pipeline(db: Session, project: Project, deployment: Deployment, get_sou
         deployment.port = profile.internal_port
         log(f"→ Контейнер запущен: {container_id[:12]} (тариф «{owner_plan}»: {mem_limit} RAM)")
 
-        log(f"→ Проверяю, что приложение отвечает на порту {profile.internal_port}…")
-        if deployer.wait_for_container_port(project.slug, profile.internal_port):
-            log("✓ Приложение отвечает")
-            if project.custom_domain:
-                log(f"→ Домен: {project.custom_domain} (и https://{project.slug}.{{DOMAIN}})")
-            else:
-                log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
+        if project.kind == ProjectKind.bot:
+            # Long-polling bots (the vast majority of Telegram bots) make
+            # outbound requests to Telegram and never open any listening
+            # socket at all — there's nothing for a port check to find,
+            # even for a perfectly working bot. Checking anyway would
+            # false-fail every such bot. Site/backend projects still get
+            # the real check below, since they DO need to answer on a
+            # port for Traefik to route to them.
+            log("→ Тип проекта «Бот» — пропускаю проверку порта (long-polling боты обычно не открывают сетевой порт)")
             set_status(DeployStatus.running)
         else:
-            log(
-                f"✗ Приложение не отвечает на порту {profile.internal_port} — контейнер запущен, "
-                f"но никто не слушает на этом порту. Проверь: правильный ли порт в EXPOSE "
-                f"(если свой Dockerfile) или в переменной PORT (если приложение читает порт "
-                f"из окружения) — платформа маршрутизирует трафик именно на {profile.internal_port}."
-            )
-            set_status(DeployStatus.failed)
+            log(f"→ Проверяю, что приложение отвечает на порту {profile.internal_port}…")
+            if deployer.wait_for_container_port(project.slug, profile.internal_port):
+                log("✓ Приложение отвечает")
+                if project.custom_domain:
+                    log(f"→ Домен: {project.custom_domain} (и https://{project.slug}.{{DOMAIN}})")
+                else:
+                    log(f"🟢 Живой: https://{project.slug}.{{DOMAIN}}")
+                set_status(DeployStatus.running)
+            else:
+                log(
+                    f"✗ Приложение не отвечает на порту {profile.internal_port} — контейнер запущен, "
+                    f"но никто не слушает на этом порту. Проверь: правильный ли порт в EXPOSE "
+                    f"(если свой Dockerfile) или в переменной PORT (если приложение читает порт "
+                    f"из окружения) — платформа маршрутизирует трафик именно на {profile.internal_port}."
+                )
+                set_status(DeployStatus.failed)
 
     except BuildError as exc:
         log(f"✗ Ошибка сборки: {exc}")

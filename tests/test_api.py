@@ -151,7 +151,7 @@ def test_webhook_push_triggers_deployment_record(client, fake_upstream, monkeypa
     assert d["status"] == "running"
     assert d["commit_sha"] is not None and len(d["commit_sha"]) == 40
     assert "Собираю образ" in d["log"]
-    assert "Живой" in d["log"]
+    assert "пропускаю проверку порта" in d["log"]  # kind="bot" — no listening port expected, checked separately
 
 
 def test_webhook_wrong_branch_ignored(client, fake_upstream):

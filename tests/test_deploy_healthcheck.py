@@ -129,3 +129,67 @@ def test_failed_health_check_still_records_container_id(client, monkeypatch, fak
 
     deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
     assert deploys[0]["port"] == 80  # static site profile's internal_port
+
+
+# ---------- bot-kind projects skip the port check ----------
+
+def _deploy_with_kind(client, monkeypatch, fake_upstream, slug, token, kind):
+    from app import deployer
+    monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
+    monkeypatch.setattr(deployer, "run_container", lambda slug, image, port, env, **kw: "fake-container-id")
+
+    proj = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": slug, "repo_url": str(fake_upstream), "branch": "main", "kind": kind},
+    ).json()
+    body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
+    sig = _sign(proj["webhook_secret"], body)
+    client.post(
+        f"/webhook/github/{slug}", content=body,
+        headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": "push"},
+    )
+    return proj
+
+
+def test_bot_kind_skips_port_check_and_still_succeeds(client, monkeypatch, fake_upstream):
+    """The real-world case this fixes: a pure long-polling Telegram bot
+    (no HTTP server at all — e.g. plain urllib-based getUpdates loop)
+    would fail the port-reachability check forever, even when working
+    correctly, since it never opens any listening socket."""
+    from app import deployer
+    monkeypatch.setattr(
+        deployer, "wait_for_container_port",
+        lambda slug, port, timeout=15.0: (_ for _ in ()).throw(AssertionError("should never be called for a bot")),
+    )
+
+    token = _register(client, "botkind-skip@example.com")
+    proj = _deploy_with_kind(client, monkeypatch, fake_upstream, "botkind-skip-proj", token, "bot")
+
+    deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
+    assert deploys[0]["status"] == "running"
+    assert "пропускаю проверку порта" in deploys[0]["log"]
+
+
+def test_site_kind_still_gets_real_port_check(client, monkeypatch, fake_upstream):
+    """Confirms the skip is specific to kind="bot" — site/backend projects
+    (which DO need to answer on a port for Traefik) still get checked."""
+    from app import deployer
+    monkeypatch.setattr(deployer, "wait_for_container_port", lambda slug, port, timeout=15.0: False)
+
+    token = _register(client, "sitekind-checked@example.com")
+    proj = _deploy_with_kind(client, monkeypatch, fake_upstream, "sitekind-checked-proj", token, "site")
+
+    deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
+    assert deploys[0]["status"] == "failed"
+    assert "не отвечает" in deploys[0]["log"]
+
+
+def test_backend_kind_still_gets_real_port_check(client, monkeypatch, fake_upstream):
+    from app import deployer
+    monkeypatch.setattr(deployer, "wait_for_container_port", lambda slug, port, timeout=15.0: False)
+
+    token = _register(client, "backendkind-checked@example.com")
+    proj = _deploy_with_kind(client, monkeypatch, fake_upstream, "backendkind-checked-proj", token, "backend")
+
+    deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
+    assert deploys[0]["status"] == "failed"
