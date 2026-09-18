@@ -66,6 +66,7 @@ class UserOut(BaseModel):
     plan: str
     github_connected: bool
     github_username: str | None = None
+    trial_days_left: int | None = None  # None for paid plans — no trial limit
 
     model_config = ConfigDict(from_attributes=True)
 

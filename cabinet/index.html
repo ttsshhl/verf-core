@@ -262,6 +262,8 @@
     </div>
   </header>
 
+  <div id="trial-banner" style="display:none; padding:10px 20px; text-align:center; font-size:13px;"></div>
+
   <div class="wrap">
     <div class="tabs">
       <button class="tab-btn active" data-panel="projects">Проекты</button>
@@ -1092,11 +1094,39 @@ function hideBootLoader(){
   if(loader) loader.style.display = 'none';
 }
 
+function renderTrialBanner(daysLeft){
+  const banner = document.getElementById('trial-banner');
+  if(daysLeft === null || daysLeft === undefined){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'block';
+  if(daysLeft < 0){
+    banner.style.background = 'var(--danger)';
+    banner.style.color = '#fff';
+    banner.innerHTML = 'Пробный период закончился — новые деплои недоступны. <a href="#" id="trial-upgrade-link" style="color:#fff; text-decoration:underline; font-weight:600;">Оформить тариф</a>, чтобы продолжить';
+  }else if(daysLeft <= 2){
+    banner.style.background = 'var(--danger)';
+    banner.style.color = '#fff';
+    const word = daysLeft === 1 ? 'день' : 'дня';
+    banner.innerHTML = `Пробный период заканчивается — остал${daysLeft === 1 ? 'ся' : 'ось'} ${daysLeft} ${word}. <a href="#" id="trial-upgrade-link" style="color:#fff; text-decoration:underline; font-weight:600;">Оформить тариф</a>`;
+  }else{
+    banner.style.background = 'var(--accent-dim)';
+    banner.style.color = 'var(--ink)';
+    banner.innerHTML = `Пробный период Free-тарифа: осталось ${daysLeft} дней. <a href="#" id="trial-upgrade-link" style="color:var(--ink); text-decoration:underline; font-weight:600;">Посмотреть тарифы</a>`;
+  }
+  document.getElementById('trial-upgrade-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelector('.tab-btn[data-panel="billing"]').click();
+  });
+}
+
 async function enterApp(){
   try{
     currentUser = await api('/me');
     document.getElementById('user-email').textContent = currentUser.email;
     document.getElementById('current-plan').textContent = currentUser.plan;
+    renderTrialBanner(currentUser.trial_days_left);
     hideBootLoader();
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';

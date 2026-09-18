@@ -12,10 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app import auth, billing, github as gh, notifications, alerts
+from app import auth, billing, github as gh, notifications, alerts, trial
 from app.config import (
     ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS,
-    MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR,
+    MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR, FREE_TRIAL_DAYS,
 )
 from app.db import get_db, init_db
 from app.models import Project, Deployment, DeployStatus, User, Subscription, SubscriptionStatus
@@ -205,8 +205,20 @@ def list_my_github_repos(user: User = Depends(get_current_user)):
 
 # ---------- Personal cabinet: self-service projects ----------
 
+def _require_active_trial_or_paid(user: User) -> None:
+    if trial.is_trial_expired(user.plan, user.created_at):
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Пробный период Free-тарифа ({FREE_TRIAL_DAYS} дней) закончился — "
+                f"оформи Pro или Business в /billing/subscribe, чтобы продолжить деплоить."
+            ),
+        )
+
+
 @app.post("/me/projects", response_model=ProjectOut)
 def create_my_project(payload: ProjectCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_active_trial_or_paid(user)
     if db.query(Project).filter_by(slug=payload.slug).first():
         raise HTTPException(status_code=409, detail="Проект с таким slug уже существует")
 
@@ -271,6 +283,7 @@ async def deploy_from_archive(
     project = db.query(Project).filter_by(slug=slug, owner_id=user.id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден или принадлежит другому пользователю")
+    _require_active_trial_or_paid(user)
 
     if not archive.filename or not archive.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Ожидается ZIP-архив")
@@ -559,6 +572,23 @@ def _activate_subscription(db: Session, subscription: Subscription, background_t
         notifications.send_payment_confirmation_email,
         subscription.user.email, subscription.plan, subscription.amount_rub,
     )
+    # Resolved synchronously (db is still valid here) — the background task
+    # itself must not touch `db`, since FastAPI closes it right after the
+    # response is sent, before background tasks run.
+    project_slugs = [p.slug for p in subscription.user.projects]
+    background_tasks.add_task(_resume_paused_projects_best_effort, project_slugs)
+
+
+def _resume_paused_projects_best_effort(project_slugs: list[str]) -> None:
+    """Best-effort — if a project was paused by the trial-expiry sweep,
+    upgrading should bring it back online immediately rather than leaving
+    the user to wonder why they paid but their site is still down."""
+    from app import deployer
+    for slug in project_slugs:
+        try:
+            deployer.resume_container(slug)
+        except Exception as exc:
+            print(f"[trial] не удалось возобновить {slug}: {exc}")
 
 
 def _send_email_best_effort(send_fn, *args) -> None:
@@ -590,6 +620,32 @@ def _send_alert_best_effort(send_fn, *args) -> None:
 
 
 # ---------- Admin (existing, unchanged behaviour) ----------
+
+@app.post("/admin/sweep-expired-trials", dependencies=[Depends(require_admin)])
+def sweep_expired_trials(db: Session = Depends(get_db)):
+    """Pauses (not deletes) every running container belonging to a
+    free-plan user whose trial period is over. Reversible — the moment
+    the user upgrades, the exact same container starts back up via
+    deployer.resume_container(), no redeploy needed.
+
+    Meant to be called once a day from a host-level cron job (see
+    scripts/verf-sweep-trials.sh in the repo), the same pattern as
+    scripts/verf-monitor.sh — not something the app schedules itself,
+    since FastAPI has no built-in cron.
+    """
+    from app import deployer
+
+    paused_projects = []
+    users = db.query(User).filter_by(plan="free").all()
+    for user in users:
+        if not trial.is_trial_expired(user.plan, user.created_at):
+            continue
+        for project in user.projects:
+            if deployer.pause_container(project.slug):
+                paused_projects.append(project.slug)
+
+    return {"checked_users": len(users), "paused_projects": paused_projects}
+
 
 @app.post("/projects", response_model=ProjectOut, dependencies=[Depends(require_admin)])
 def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
@@ -655,6 +711,9 @@ async def github_webhook(
 
     if x_github_event == "ping":
         return {"pong": True}
+
+    if project.owner is not None:
+        _require_active_trial_or_paid(project.owner)
 
     if x_github_event != "push":
         return {"ignored": x_github_event}

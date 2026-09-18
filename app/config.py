@@ -49,6 +49,10 @@ JWT_EXPIRE_MINUTES = int(os.getenv("VERF_JWT_EXPIRE_MINUTES", str(60 * 24 * 30))
 PLAN_PROJECT_LIMITS = {"free": 1, "pro": 5, "business": None}
 PLAN_PRICES_RUB = {"pro": 490, "business": 1990}  # launch pricing — see README for rationale
 
+# Free plan is a time-limited trial, not permanent — Pro/Business have no
+# such limit since they're already paid. Counted from User.created_at.
+FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "7"))
+
 # --- ЮKassa (payment provider) ---
 YOOKASSA_SHOP_ID = os.getenv("VERF_YOOKASSA_SHOP_ID", "")
 YOOKASSA_SECRET_KEY = os.getenv("VERF_YOOKASSA_SECRET_KEY", "")

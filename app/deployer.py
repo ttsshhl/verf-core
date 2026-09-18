@@ -181,6 +181,41 @@ def wait_for_container_port(slug: str, port: int, timeout: float = 15.0) -> bool
     return False
 
 
+def pause_container(slug: str) -> bool:
+    """Stops (without removing) a project's container — used when a
+    free-trial account expires. Unlike stop_and_remove (project deletion),
+    this is reversible: the exact same container, image and state can be
+    started again instantly via resume_container() the moment the user
+    upgrades, with no redeploy needed. Returns True if a container was
+    actually found and stopped, False if there was nothing to pause
+    (already stopped, or never successfully deployed).
+    """
+    client = _client()
+    try:
+        c = client.containers.get(f"verf-{slug}")
+    except Exception:
+        return False
+    if c.status != "running":
+        return False
+    c.stop(timeout=10)
+    return True
+
+
+def resume_container(slug: str) -> bool:
+    """Starts a previously paused container back up — the upgrade-path
+    counterpart to pause_container(). Returns True if it was actually
+    paused and got started, False if there was nothing to resume."""
+    client = _client()
+    try:
+        c = client.containers.get(f"verf-{slug}")
+    except Exception:
+        return False
+    if c.status == "running":
+        return False
+    c.start()
+    return True
+
+
 def stop_and_remove(slug: str) -> None:
     client = _client()
     container_name = f"verf-{slug}"

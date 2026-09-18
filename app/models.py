@@ -60,6 +60,11 @@ class User(Base):
     def github_connected(self) -> bool:
         return bool(self.github_token)
 
+    @property
+    def trial_days_left(self) -> int | None:
+        from app import trial  # local import — avoids a circular import at module load time
+        return trial.trial_days_left(self.plan, self.created_at)
+
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
