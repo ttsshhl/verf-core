@@ -143,8 +143,8 @@
     box-shadow:0 30px 60px -24px rgba(6,32,95,.55), 0 0 0 1px rgba(255,255,255,.4);
   }
   .card h4{ font-size:13px; font-weight:700; color:var(--ink-soft); margin-bottom:14px; letter-spacing:.01em; }
-  .card-left{ transform:rotate(-2deg) translateY(8px); }
-  .card-right{ transform:rotate(2deg) translateY(8px); }
+  .card-left{ transform:translateY(10px); }
+  .card-right{ transform:translateY(10px); }
   .card-mid{
     background:linear-gradient(180deg, #F8B3D8 0%, var(--pink) 100%);
     color:var(--blue); text-align:center; padding:26px 22px 28px;
@@ -173,8 +173,20 @@
   @keyframes blink{ 50%{ opacity:0; } }
   @keyframes float{ 0%,100%{ translate:0 0; } 50%{ translate:0 -8px; } }
 
-  .chart svg{ width:100%; height:auto; display:block; }
-  .chart .legend{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-soft); margin-top:8px; font-weight:600; }
+  .proj{ list-style:none; display:grid; gap:10px; }
+  .proj li{
+    display:flex; align-items:center; gap:12px; padding:11px 12px;
+    background:var(--paper); border:1px solid var(--line); border-radius:12px;
+  }
+  .proj .pi{
+    width:34px; height:34px; border-radius:10px; background:var(--blue); color:var(--pink);
+    display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;
+  }
+  .proj .pt{ min-width:0; flex:1; }
+  .proj .pn{ font-size:13.5px; font-weight:700; color:var(--blue); line-height:1.2; }
+  .proj .pu{ font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono', monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .proj .ps{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#0E8F67; flex-shrink:0; }
+  .proj .ps::before{ content:''; width:7px; height:7px; border-radius:50%; background:var(--live); box-shadow:0 0 0 3px rgba(31,184,134,.2); }
 
   /* ---------- sections ---------- */
   section{ padding:96px 0 40px; }
@@ -290,14 +302,14 @@
       <h1>От <em>git push</em> до продакшена. Один шаг.</h1>
       <p class="lead">Хостинг для сайтов, ботов и AI-агентов. Пушишь код — получаешь рабочий проект, без возни с инфраструктурой.</p>
       <div class="hero-actions">
-        <a href="https://cabinet.verfdeploy.ru" class="btn btn-pink">Начать бесплатно</a>
+        <a href="https://cabinet.verfdeploy.ru" class="btn btn-pink">Задеплоить бесплатно</a>
         <a href="#targets" class="btn btn-outline">Как это работает</a>
       </div>
-      <div class="hero-note">7 дней бесплатно, без привязки карты</div>
+      <div class="hero-note">Без привязки карты · первый проект поднимается за пару минут</div>
 
       <div class="cards">
         <div class="card card-left">
-          <h4>Деплой из git</h4>
+          <h4>Деплой из GitHub</h4>
           <div class="term" id="termBody" aria-label="Пример деплоя"></div>
         </div>
 
@@ -313,16 +325,13 @@
           <p>от пуша до живого проекта</p>
         </div>
 
-        <div class="card card-right chart">
-          <h4>Нагрузка проекта · пример</h4>
-          <svg viewBox="0 0 220 110" aria-hidden="true">
-            <line x1="0" y1="95" x2="220" y2="95" stroke="#DCE4F5" stroke-width="1"/>
-            <line x1="0" y1="60" x2="220" y2="60" stroke="#EEF2FB" stroke-width="1"/>
-            <line x1="0" y1="25" x2="220" y2="25" stroke="#EEF2FB" stroke-width="1"/>
-            <polyline points="0,82 36,70 72,76 108,46 144,52 180,28 220,34" fill="none" stroke="#F59ACC" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <polyline points="0,92 36,86 72,88 108,72 144,74 180,60 220,64" fill="none" stroke="#09318D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>
-          </svg>
-          <div class="legend"><span>CPU</span><span>RAM</span></div>
+        <div class="card card-right">
+          <h4>Ваши проекты</h4>
+          <ul class="proj">
+            <li><span class="pi">◧</span><span class="pt"><div class="pn">Сайт</div><div class="pu">my-site.verfdeploy.ru</div></span><span class="ps">работает</span></li>
+            <li><span class="pi">◨</span><span class="pt"><div class="pn">Telegram-бот</div><div class="pu">my-bot.verfdeploy.ru</div></span><span class="ps">работает</span></li>
+            <li><span class="pi">◩</span><span class="pt"><div class="pn">API</div><div class="pu">api-app.verfdeploy.ru</div></span><span class="ps">работает</span></li>
+          </ul>
         </div>
       </div>
     </div>
