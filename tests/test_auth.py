@@ -6,12 +6,12 @@ from app import auth
 
 
 def test_password_hash_and_verify_roundtrip():
-    h = auth.hash_password("correct-horse-battery-staple")
-    assert auth.verify_password("correct-horse-battery-staple", h) is True
+    h = auth.hash_password("Correct-Horse1!-staple")
+    assert auth.verify_password("Correct-Horse1!-staple", h) is True
 
 
 def test_wrong_password_rejected():
-    h = auth.hash_password("correct-horse-battery-staple")
+    h = auth.hash_password("Correct-Horse1!-staple")
     assert auth.verify_password("wrong-password", h) is False
 
 

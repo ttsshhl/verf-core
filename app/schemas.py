@@ -3,6 +3,13 @@ import re
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
+# Subdomains used by the platform itself, plus slugs whose container name
+# ("verf-{slug}") would collide with the compose service containers
+# (verf-core-traefik-1, verf-core-verf-core-1, ...).
+RESERVED_SLUGS = {"api", "cabinet", "www", "mail", "admin", "app", "static"}
+RESERVED_SLUG_PREFIXES = ("core-",)
+
+
 class ProjectCreate(BaseModel):
     slug: str = Field(..., pattern=r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", description="используется как поддомен")
     repo_url: str | None = None
@@ -10,6 +17,14 @@ class ProjectCreate(BaseModel):
     branch: str = "main"
     kind: str = "backend"  # site | bot | backend
     env: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("slug")
+    @classmethod
+    def _slug_not_reserved(cls, v: str) -> str:
+        if v in RESERVED_SLUGS or v.startswith(RESERVED_SLUG_PREFIXES):
+            raise ValueError("это имя зарезервировано, выберите другой slug")
+        return v
+
     # No validator requiring a repo source: a project can legitimately have
     # none at all, deployed purely via `verf deploy` (CLI) or a ZIP upload
     # in the cabinet instead of git.

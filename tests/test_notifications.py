@@ -117,7 +117,7 @@ def test_register_sends_welcome_email(client, monkeypatch):
     captured = {}
     monkeypatch.setattr(notifications, "send_welcome_email", lambda to: captured.update(to=to))
 
-    r = client.post("/auth/register", json={"email": "welcome-me@example.com", "password": "correct-horse-battery"})
+    r = client.post("/auth/register", json={"email": "welcome-me@example.com", "password": "Correct-Horse1!"})
     assert r.status_code == 200
     assert captured.get("to") == "welcome-me@example.com"
 
@@ -132,7 +132,7 @@ def test_register_succeeds_even_if_email_sending_fails(client, monkeypatch):
 
     monkeypatch.setattr(notifications, "send_welcome_email", boom)
 
-    r = client.post("/auth/register", json={"email": "resilient@example.com", "password": "correct-horse-battery"})
+    r = client.post("/auth/register", json={"email": "resilient@example.com", "password": "Correct-Horse1!"})
     assert r.status_code == 200
     assert "access_token" in r.json()
 
@@ -146,7 +146,7 @@ def test_yookassa_webhook_sends_payment_confirmation_email(client, monkeypatch):
         "id": "yk_email_test", "confirmation": {"confirmation_url": "https://yookassa.ru/pay/x"},
     })
 
-    r = client.post("/auth/register", json={"email": "payer-email@example.com", "password": "correct-horse-battery"})
+    r = client.post("/auth/register", json={"email": "payer-email@example.com", "password": "Correct-Horse1!"})
     token = r.json()["access_token"]
     client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
 
@@ -171,7 +171,7 @@ def test_payment_activation_succeeds_even_if_email_sending_fails(client, monkeyp
         "id": "yk_email_fail_test", "confirmation": {"confirmation_url": "https://yookassa.ru/pay/x"},
     })
 
-    r = client.post("/auth/register", json={"email": "resilient-payer@example.com", "password": "correct-horse-battery"})
+    r = client.post("/auth/register", json={"email": "resilient-payer@example.com", "password": "Correct-Horse1!"})
     token = r.json()["access_token"]
     client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "business"})
 
