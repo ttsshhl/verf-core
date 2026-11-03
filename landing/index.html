@@ -139,10 +139,8 @@
   .hero-actions{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:18px; }
   .hero-note{ font-size:13.5px; color:rgba(255,255,255,.74); }
 
-  .intro{
-    position:relative; z-index:3; background:var(--white); text-align:center;
-    border-radius:44px 44px 0 0; margin-top:-44px; padding:72px 0 24px;
-  }
+  .fade{ height:200px; background:linear-gradient(180deg, #1B4BB8 0%, #4F73CF 30%, #A9BDE8 62%, #E3EBFA 86%, #FFFFFF 100%); }
+  .intro{ position:relative; z-index:3; background:var(--white); text-align:center; padding:8px 0 24px; }
   .intro .eyebrow{ color:var(--blue); background:var(--paper); border:1px solid var(--line); }
   .intro .lead{ color:var(--ink-soft); font-size:19px; max-width:600px; margin:0 auto 14px; }
   .intro .hero-note{ color:var(--ink-soft); font-size:14px; }
@@ -212,7 +210,7 @@
   /* ---------- orbit animation (hero background) ---------- */
   .hero .wrap{ z-index:2; flex:1; width:100%; display:flex; flex-direction:column; }
   .orbit{
-    --d:min(94vw, calc(100svh - 200px), 1000px);
+    --d:min(94vw, calc(100svh - 170px), 1000px);
     position:absolute; left:50%; top:calc(50% + 23px); width:var(--d); height:var(--d);
     transform:translate(-50%,-50%); pointer-events:none; z-index:1;
   }
@@ -344,7 +342,7 @@
     .hero-body{ padding-bottom:56px; }
     .blob{ display:none; }
     .cards{ grid-template-columns:1fr; max-width:420px; margin-top:40px; gap:18px; }
-    .intro{ border-radius:30px 30px 0 0; margin-top:-30px; padding-top:52px; }
+    .fade{ height:120px; }
     .intro .lead{ font-size:17px; }
     .card-left, .card-right, .card-mid{ transform:none; animation:none; }
     .orbit{ width:760px; height:760px; top:40%; }
@@ -405,11 +403,11 @@
     <div class="nav">
       <a href="/" class="logo"><span class="dot"></span><span class="logo-text">VERF<small>Хостинг для ваших проектов</small></span></a>
       <nav class="nav-pill" aria-label="Разделы">
-        <a href="#top" class="active">Главная</a>
-        <a href="#targets">Что развернуть</a>
-        <a href="#pricing">Тарифы</a>
+        <a href="#top" class="active">главная</a>
+        <a href="#targets">что развернуть</a>
+        <a href="#pricing">тарифы</a>
       </nav>
-      <a href="https://cabinet.verfdeploy.ru" class="btn btn-outline">Личный кабинет</a>
+      <a href="https://cabinet.verfdeploy.ru" class="btn btn-outline">личный кабинет</a>
     </div>
 
     <div class="hero-body" id="top">
@@ -418,6 +416,7 @@
     </div>
   </div>
 </header>
+<div class="fade" aria-hidden="true"></div>
 
 <div class="intro">
   <div class="wrap">
