@@ -3,6 +3,8 @@ import hmac
 import json
 import subprocess
 from datetime import datetime, timedelta, timezone
+
+from app.config import FREE_TRIAL_DAYS
 from pathlib import Path
 
 import pytest
@@ -85,7 +87,7 @@ def _age_account(client, email: str, days: int):
 def test_me_shows_full_trial_for_fresh_account(client):
     token = _register(client, "fresh@example.com")
     r = client.get("/me", headers=_auth_headers(token))
-    assert r.json()["trial_days_left"] == 7
+    assert r.json()["trial_days_left"] == FREE_TRIAL_DAYS
 
 
 def test_me_shows_none_for_paid_plan(client, monkeypatch):
@@ -104,7 +106,7 @@ def test_me_shows_none_for_paid_plan(client, monkeypatch):
 
 def test_create_project_blocked_after_trial_expires(client):
     token = _register(client, "expired-create@example.com")
-    _age_account(client, "expired-create@example.com", days=8)
+    _age_account(client, "expired-create@example.com", days=FREE_TRIAL_DAYS + 1)
 
     r = client.post("/me/projects", headers=_auth_headers(token), json={"slug": "too-late", "kind": "site"})
     assert r.status_code == 402
@@ -125,7 +127,7 @@ def test_zip_deploy_blocked_after_trial_expires(client, tmp_path):
     import zipfile
     token = _register(client, "expired-zip@example.com")
     client.post("/me/projects", headers=_auth_headers(token), json={"slug": "zip-proj", "kind": "site"})
-    _age_account(client, "expired-zip@example.com", days=10)
+    _age_account(client, "expired-zip@example.com", days=FREE_TRIAL_DAYS + 3)
 
     zip_path = tmp_path / "site.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
@@ -147,7 +149,7 @@ def test_webhook_deploy_blocked_after_trial_expires(client, fake_upstream):
         "/me/projects", headers=_auth_headers(token),
         json={"slug": "webhook-proj", "repo_url": str(fake_upstream), "branch": "main", "kind": "site"},
     ).json()
-    _age_account(client, "expired-webhook@example.com", days=9)
+    _age_account(client, "expired-webhook@example.com", days=FREE_TRIAL_DAYS + 2)
 
     body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
     sig = _sign(proj["webhook_secret"], body)
@@ -166,7 +168,7 @@ def test_webhook_ping_still_works_after_trial_expires(client, fake_upstream):
         "/me/projects", headers=_auth_headers(token),
         json={"slug": "ping-proj", "repo_url": str(fake_upstream), "branch": "main", "kind": "site"},
     ).json()
-    _age_account(client, "expired-ping@example.com", days=9)
+    _age_account(client, "expired-ping@example.com", days=FREE_TRIAL_DAYS + 2)
 
     body = json.dumps({"zen": "hi"}).encode()
     sig = _sign(proj["webhook_secret"], body)
@@ -197,7 +199,7 @@ def test_sweep_pauses_expired_users_projects(client, monkeypatch, fake_upstream)
 
     token = _register(client, "sweep-target@example.com")
     client.post("/me/projects", headers=_auth_headers(token), json={"slug": "sweep-proj", "kind": "site"})
-    _age_account(client, "sweep-target@example.com", days=8)
+    _age_account(client, "sweep-target@example.com", days=FREE_TRIAL_DAYS + 1)
 
     r = client.post("/admin/sweep-expired-trials", headers={"X-API-Key": ADMIN_API_KEY})
     assert r.status_code == 200

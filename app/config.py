@@ -51,7 +51,7 @@ PLAN_PRICES_RUB = {"pro": 490, "business": 1990}  # launch pricing — see READM
 
 # Free plan is a time-limited trial, not permanent — Pro/Business have no
 # such limit since they're already paid. Counted from User.created_at.
-FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "7"))
+FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "14"))
 
 # --- ЮKassa (payment provider) ---
 YOOKASSA_SHOP_ID = os.getenv("VERF_YOOKASSA_SHOP_ID", "")
