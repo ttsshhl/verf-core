@@ -128,7 +128,7 @@
   }
   .eyebrow .live{ width:7px; height:7px; border-radius:50%; background:var(--live); box-shadow:0 0 0 3px rgba(31,184,134,.28); }
   h1{
-    font-weight:800; font-size:58px; line-height:1.07; letter-spacing:-.025em;
+    font-weight:800; font-size:54px; line-height:1.07; letter-spacing:-.025em;
     max-width:760px; margin:0 auto 22px;
   }
   h1 em{ font-style:normal; color:var(--accent); }
@@ -210,14 +210,13 @@
   /* ---------- orbit animation (hero background) ---------- */
   .hero .wrap{ z-index:2; flex:1; width:100%; display:flex; flex-direction:column; }
   .orbit{
-    position:absolute; left:50%; top:46%; width:1100px; height:1100px;
+    --d:min(94vw, calc(100svh - 200px), 1000px);
+    position:absolute; left:50%; top:calc(50% + 23px); width:var(--d); height:var(--d);
     transform:translate(-50%,-50%); pointer-events:none; z-index:1;
-    -webkit-mask-image:radial-gradient(circle, #000 55%, transparent 71%);
-            mask-image:radial-gradient(circle, #000 55%, transparent 71%);
   }
   .orbit > *{ position:absolute; border-radius:50%; left:50%; top:50%; transform:translate(-50%,-50%); }
   .sphere{
-    width:46%; height:46%;
+    width:54%; height:54%;
     background:radial-gradient(circle at 50% 42%, rgba(70,120,235,.42) 0%, rgba(30,80,200,.22) 55%, rgba(9,49,141,0) 78%);
     border:1px solid rgba(255,255,255,.26);
     box-shadow:inset 0 0 70px rgba(150,190,255,.22), 0 0 140px rgba(76,122,230,.45);
@@ -236,8 +235,8 @@
 
   .orb{ border:1px solid rgba(255,255,255,.22); animation:orb var(--t) linear infinite; animation-direction:var(--dir, normal); }
   .orb.dash{ border-style:dashed; border-color:rgba(255,255,255,.18); }
-  .r1{ width:60%; height:60%; --t:70s; }
-  .r2{ width:80%; height:80%; --t:110s; --dir:reverse; }
+  .r1{ width:68%; height:68%; --t:70s; }
+  .r2{ width:84%; height:84%; --t:110s; --dir:reverse; }
   .r3{ width:100%; height:100%; --t:160s; }
   @keyframes orb{ from{ transform:translate(-50%,-50%) rotate(0deg); } to{ transform:translate(-50%,-50%) rotate(360deg); } }
 
@@ -354,6 +353,7 @@
     .wrap{ padding:0 20px; }
     .footer-grid{ flex-direction:column; align-items:flex-start; }
   }
+  @media (max-height:760px){ .chip{ display:none; } }
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }
   }
@@ -385,17 +385,17 @@
       <div class="slot" style="--o:90deg"><div class="pos"><span class="spark"></span></div></div>
     </div>
     <div class="orb r2 dash">
-      <div class="slot" style="--o:0deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Docker</span></div></div></div>
-      <div class="slot" style="--o:90deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>GitHub</span></div></div></div>
-      <div class="slot" style="--o:180deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>SSL</span></div></div></div>
-      <div class="slot" style="--o:270deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Свой домен</span></div></div></div>
-      <div class="slot" style="--o:315deg"><div class="pos"><span class="spark"></span></div></div>
+      <div class="slot" style="--o:300deg"><div class="pos"><span class="spark"></span></div></div>
     </div>
     <div class="orb r3">
-      <div class="slot" style="--o:20deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Telegram-боты</span></div></div></div>
-      <div class="slot" style="--o:140deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>API</span></div></div></div>
-      <div class="slot" style="--o:260deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Логи</span></div></div></div>
-      <div class="slot" style="--o:200deg"><div class="pos"><span class="spark"></span></div></div>
+      <div class="slot" style="--o:0deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Docker</span></div></div></div>
+      <div class="slot" style="--o:51deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>GitHub</span></div></div></div>
+      <div class="slot" style="--o:103deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>SSL</span></div></div></div>
+      <div class="slot" style="--o:154deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Свой домен</span></div></div></div>
+      <div class="slot" style="--o:206deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Telegram-боты</span></div></div></div>
+      <div class="slot" style="--o:257deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>API</span></div></div></div>
+      <div class="slot" style="--o:309deg"><div class="pos"><div class="chip"><span class="chip-in"><i></i>Логи</span></div></div></div>
+      <div class="slot" style="--o:26deg"><div class="pos"><span class="spark"></span></div></div>
     </div>
   </div>
   <div class="wrap">
@@ -410,8 +410,7 @@
     </div>
 
     <div class="hero-body" id="top">
-      <span class="blob" aria-hidden="true"></span>
-      <h1>От <em>git push</em> до продакшена. Один шаг.</h1>
+      <h1>От <em>идеи</em> до продакшена. Один шаг.</h1>
       <a href="https://cabinet.verfdeploy.ru" class="btn btn-pink btn-xl">Начать бесплатно</a>
     </div>
   </div>
