@@ -99,6 +99,8 @@
     display:flex; align-items:center; gap:10px;
     font-weight:800; font-size:21px; letter-spacing:.01em;
   }
+  .logo-text{ display:flex; flex-direction:column; line-height:1.05; }
+  .logo-text small{ font-size:11.5px; font-weight:600; letter-spacing:0; margin-top:4px; color:rgba(255,255,255,.74); white-space:nowrap; }
   .logo .dot{ width:11px; height:11px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px rgba(252,115,77,.28); }
   .nav-pill{
     display:flex; gap:4px; padding:5px;
@@ -111,7 +113,7 @@
   }
   .nav-pill a:hover{ background:rgba(255,255,255,.16); }
   .nav-pill a.active{ background:rgba(255,255,255,.22); color:var(--white); }
-  .nav .btn{ padding:10px 20px; font-size:14px; }
+  .nav .btn{ padding:10px 20px; font-size:14px; white-space:nowrap; flex-shrink:0; }
 
   .hero-body{ text-align:center; position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 0 72px; }
   .blob{
@@ -337,6 +339,7 @@
   /* ---------- responsive ---------- */
   @media (max-width:900px){
     .nav-pill{ display:none; }
+    .nav .btn{ padding:9px 15px; font-size:13px; }
     h1{ font-size:38px; }
     .hero-body{ padding-bottom:56px; }
     .blob{ display:none; }
@@ -400,7 +403,7 @@
   </div>
   <div class="wrap">
     <div class="nav">
-      <a href="/" class="logo"><span class="dot"></span>VERF</a>
+      <a href="/" class="logo"><span class="dot"></span><span class="logo-text">VERF<small>Хостинг для ваших проектов</small></span></a>
       <nav class="nav-pill" aria-label="Разделы">
         <a href="#top" class="active">Главная</a>
         <a href="#targets">Что развернуть</a>
