@@ -80,9 +80,10 @@
   .hero{
     position:relative; overflow:hidden; color:var(--white);
     background:
-      radial-gradient(900px 420px at 50% 28%, rgba(76,122,230,.55), transparent 70%),
-      linear-gradient(180deg, var(--blue) 0%, #0C3FAE 52%, #7E9BE0 82%, var(--white) 100%);
-    padding-bottom:140px;
+      radial-gradient(900px 480px at 50% 50%, rgba(76,122,230,.5), transparent 70%),
+      linear-gradient(180deg, var(--blue) 0%, #0C3FAE 55%, #1B4BB8 100%);
+    min-height:100vh; min-height:100svh;
+    display:flex; flex-direction:column;
   }
   .hero::before{
     content:''; position:absolute; inset:0; pointer-events:none;
@@ -112,12 +113,12 @@
   .nav-pill a.active{ background:rgba(255,255,255,.22); color:var(--white); }
   .nav .btn{ padding:10px 20px; font-size:14px; }
 
-  .hero-body{ text-align:center; padding-top:64px; position:relative; }
+  .hero-body{ text-align:center; position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 0 72px; }
   .blob{
     position:absolute; width:34px; height:34px; border-radius:50%;
     background:radial-gradient(circle at 30% 30%, #FFC2AA, var(--accent));
     box-shadow:0 8px 30px rgba(252,115,77,.65);
-    right:calc(50% - 300px); top:44px; animation:float 6s ease-in-out infinite;
+    right:calc(50% - 330px); top:calc(50% - 120px); animation:float 6s ease-in-out infinite;
   }
   .eyebrow{
     display:inline-flex; align-items:center; gap:8px;
@@ -132,8 +133,17 @@
   }
   h1 em{ font-style:normal; color:var(--accent); }
   .lead{ font-size:17.5px; color:rgba(255,255,255,.86); max-width:540px; margin:0 auto 34px; }
+  .btn-xl{ padding:17px 38px; font-size:17px; }
   .hero-actions{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:18px; }
   .hero-note{ font-size:13.5px; color:rgba(255,255,255,.74); }
+
+  .intro{
+    position:relative; z-index:3; background:var(--white); text-align:center;
+    border-radius:44px 44px 0 0; margin-top:-44px; padding:72px 0 24px;
+  }
+  .intro .eyebrow{ color:var(--blue); background:var(--paper); border:1px solid var(--line); }
+  .intro .lead{ color:var(--ink-soft); font-size:19px; max-width:600px; margin:0 auto 14px; }
+  .intro .hero-note{ color:var(--ink-soft); font-size:14px; }
 
   /* floating cards */
   .cards{
@@ -198,7 +208,7 @@
 
 
   /* ---------- orbit animation (hero background) ---------- */
-  .hero .wrap{ z-index:2; }
+  .hero .wrap{ z-index:2; flex:1; width:100%; display:flex; flex-direction:column; }
   .orbit{
     position:absolute; left:50%; top:46%; width:1100px; height:1100px;
     transform:translate(-50%,-50%); pointer-events:none; z-index:1;
@@ -329,11 +339,12 @@
   @media (max-width:900px){
     .nav-pill{ display:none; }
     h1{ font-size:38px; }
-    .hero-body{ padding-top:40px; }
+    .hero-body{ padding-bottom:56px; }
     .blob{ display:none; }
-    .cards{ grid-template-columns:1fr; max-width:420px; margin-top:48px; gap:18px; }
+    .cards{ grid-template-columns:1fr; max-width:420px; margin-top:40px; gap:18px; }
+    .intro{ border-radius:30px 30px 0 0; margin-top:-30px; padding-top:52px; }
+    .intro .lead{ font-size:17px; }
     .card-left, .card-right, .card-mid{ transform:none; animation:none; }
-    .hero{ padding-bottom:90px; }
     .orbit{ width:760px; height:760px; top:40%; }
     .chip{ display:none; }
 
@@ -400,45 +411,46 @@
 
     <div class="hero-body" id="top">
       <span class="blob" aria-hidden="true"></span>
-      <div class="eyebrow"><span class="live"></span>Оплата в рублях · СБП и карта</div>
       <h1>От <em>git push</em> до продакшена. Один шаг.</h1>
-      <p class="lead">Хостинг для сайтов, ботов и AI-агентов. Пушишь код — получаешь рабочий проект, без возни с инфраструктурой.</p>
-      <div class="hero-actions">
-        <a href="https://cabinet.verfdeploy.ru" class="btn btn-pink">Задеплоить бесплатно</a>
-        <a href="#targets" class="btn btn-outline">Как это работает</a>
-      </div>
-      <div class="hero-note">Без привязки карты · первый проект поднимается за пару минут</div>
-
-      <div class="cards">
-        <div class="card card-left">
-          <h4>Деплой из GitHub</h4>
-          <div class="term" id="termBody" aria-label="Пример деплоя"></div>
-        </div>
-
-        <div class="card card-mid">
-          <h4>Время деплоя</h4>
-          <div class="ring">
-            <svg viewBox="0 0 120 120" aria-hidden="true">
-              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="10"/>
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="82"/>
-            </svg>
-            <div class="num">~40<small>секунд</small></div>
-          </div>
-          <p>от пуша до живого проекта</p>
-        </div>
-
-        <div class="card card-right">
-          <h4>Ваши проекты</h4>
-          <ul class="proj">
-            <li><span class="pi">◧</span><span class="pn">Сайт</span><span class="ps">работает</span></li>
-            <li><span class="pi">◨</span><span class="pn">Telegram-бот</span><span class="ps">работает</span></li>
-            <li><span class="pi">◩</span><span class="pn">API</span><span class="ps">работает</span></li>
-          </ul>
-        </div>
-      </div>
+      <a href="https://cabinet.verfdeploy.ru" class="btn btn-pink btn-xl">Начать бесплатно</a>
     </div>
   </div>
 </header>
+
+<div class="intro">
+  <div class="wrap">
+    <div class="eyebrow"><span class="live"></span>Оплата в рублях · СБП и карта</div>
+    <p class="lead">Хостинг для сайтов, ботов и AI-агентов. Пушишь код — получаешь рабочий проект, без возни с инфраструктурой.</p>
+    <div class="hero-note">Без привязки карты · первый проект поднимается за пару минут</div>
+    <div class="cards">
+      <div class="card card-left">
+        <h4>Деплой из GitHub</h4>
+        <div class="term" id="termBody" aria-label="Пример деплоя"></div>
+      </div>
+
+      <div class="card card-mid">
+        <h4>Время деплоя</h4>
+        <div class="ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="10"/>
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="82"/>
+          </svg>
+          <div class="num">~40<small>секунд</small></div>
+        </div>
+        <p>от пуша до живого проекта</p>
+      </div>
+
+      <div class="card card-right">
+        <h4>Ваши проекты</h4>
+        <ul class="proj">
+          <li><span class="pi">◧</span><span class="pn">Сайт</span><span class="ps">работает</span></li>
+          <li><span class="pi">◨</span><span class="pn">Telegram-бот</span><span class="ps">работает</span></li>
+          <li><span class="pi">◩</span><span class="pn">API</span><span class="ps">работает</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
 
 <main>
   <section id="targets">
