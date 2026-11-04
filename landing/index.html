@@ -258,7 +258,7 @@
     to{ transform:rotate(calc(-1 * var(--o) - 360deg)); }
   }
   .spark{ position:absolute; top:0; left:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%;
-    background:var(--accent); box-shadow:0 0 0 4px rgba(252,115,77,.25), 0 0 22px 6px rgba(252,115,77,.65); }
+    background:#E4E8F0; box-shadow:0 0 0 4px rgba(228,232,240,.18), 0 0 20px 5px rgba(228,232,240,.4); }
 
   /* ---------- sections ---------- */
   section{ padding:96px 0 40px; }
@@ -358,7 +358,20 @@
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }
   }
+
+  /* no text jump: show hero text only after the web font is ready */
+  .js:not(.ready) .hero-body, .js:not(.ready) .nav{ opacity:0; }
+  .hero-body, .nav{ transition:opacity .35s ease; }
 </style>
+<script>
+  document.documentElement.classList.add('js');
+  (function(){
+    var done=false; function go(){ if(done) return; done=true; document.documentElement.classList.add('ready'); }
+    if(document.fonts && document.fonts.ready){ Promise.race([document.fonts.ready, new Promise(function(r){ setTimeout(r,1200); })]).then(go); }
+    else { go(); }
+    setTimeout(go,1500);
+  })();
+</script>
 </head>
 <body>
 
