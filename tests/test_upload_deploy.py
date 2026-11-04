@@ -38,7 +38,7 @@ def client(tmp_path, monkeypatch):
         app.dependency_overrides.clear()
 
 
-def _register(client, email="alice@example.com", password="correct-horse-battery"):
+def _register(client, email="alice@example.com", password="Correct-Horse1!"):
     r = client.post("/auth/register", json={"email": email, "password": password})
     return r.json()["access_token"]
 

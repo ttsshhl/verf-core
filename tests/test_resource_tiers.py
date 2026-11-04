@@ -58,7 +58,7 @@ def _sign(secret: str, body: bytes) -> str:
     return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
-def _register(client, email, password="correct-horse-battery"):
+def _register(client, email, password="Correct-Horse1!"):
     r = client.post("/auth/register", json={"email": email, "password": password})
     return r.json()["access_token"]
 
