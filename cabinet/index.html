@@ -491,6 +491,18 @@ function showToast(msg, isError){
   setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+function fmtDetail(d, fallback){
+  if(!d) return fallback;
+  if(typeof d === 'string') return d;
+  if(Array.isArray(d)){
+    return d.map(e=>{
+      const f = (e.loc||[]).filter(x=>x!=='body').join('.');
+      if(f==='slug') return 'Название проекта: только строчные латинские буквы, цифры и дефис (2–32 символа), например clean-channel';
+      return (f?f+': ':'') + (e.msg||'ошибка');
+    }).join('; ');
+  }
+  return d.message || fallback;
+}
 async function api(path, opts = {}){
   const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
   if(token) headers['Authorization'] = 'Bearer ' + token;
@@ -498,7 +510,7 @@ async function api(path, opts = {}){
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
   const data = isJson ? await res.json() : null;
   if(!res.ok){
-    const msg = (data && data.detail) ? data.detail : ('Ошибка ' + res.status);
+    const msg = fmtDetail(data && data.detail, 'Ошибка ' + res.status);
     throw new Error(msg);
   }
   return data;
@@ -910,7 +922,7 @@ document.getElementById('new-project-form').addEventListener('submit', async (e)
       });
       if(!uploadRes.ok){
         const errBody = await uploadRes.json().catch(() => ({}));
-        throw new Error(errBody.detail || 'Не удалось загрузить архив');
+        throw new Error(fmtDetail(errBody.detail, 'Не удалось загрузить архив'));
       }
       showToast('Проект создан, деплой запущен — статус смотри в карточке ниже');
     }else{
