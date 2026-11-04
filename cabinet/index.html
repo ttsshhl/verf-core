@@ -1165,7 +1165,12 @@ function renderTrialBanner(daysLeft){
     banner.style.display = 'none';
     return;
   }
+  let dismissedKey = null;
+  try{ dismissedKey = localStorage.getItem('verf_trial_dismissed'); }catch(e){}
+  if(dismissedKey === String(daysLeft)){ banner.style.display = 'none'; return; }
   banner.style.display = 'block';
+  banner.style.position = 'relative';
+  banner.style.paddingRight = '48px';
   if(daysLeft < 0){
     banner.style.background = 'var(--danger)';
     banner.style.color = '#fff';
@@ -1178,8 +1183,16 @@ function renderTrialBanner(daysLeft){
   }else{
     banner.style.background = 'var(--accent-dim)';
     banner.style.color = 'var(--ink)';
-    banner.innerHTML = `Пробный период Free-тарифа: осталось ${daysLeft} дней. <a href="#" id="trial-upgrade-link" style="color:var(--ink); text-decoration:underline; font-weight:600;">Посмотреть тарифы</a>`;
+    banner.innerHTML = `Пробный период Free-тарифа: осталось ${daysLeft} ${(daysLeft % 10 >= 2 && daysLeft % 10 <= 4 && (daysLeft < 10 || daysLeft > 20)) ? 'дня' : (daysLeft % 10 === 1 && daysLeft !== 11 ? 'день' : 'дней')}. <a href="#" id="trial-upgrade-link" style="color:var(--ink); text-decoration:underline; font-weight:600;">Посмотреть тарифы</a>`;
   }
+  const close = document.createElement('button');
+  close.type = 'button'; close.setAttribute('aria-label', 'Закрыть'); close.textContent = '×';
+  close.style.cssText = 'position:absolute; right:14px; top:50%; transform:translateY(-50%); width:28px; height:28px; border:none; border-radius:50%; background:rgba(6,32,95,.1); color:inherit; font-size:18px; line-height:1; cursor:pointer;';
+  close.addEventListener('click', () => {
+    banner.style.display = 'none';
+    try{ localStorage.setItem('verf_trial_dismissed', String(daysLeft)); }catch(e){}
+  });
+  banner.appendChild(close);
   document.getElementById('trial-upgrade-link').addEventListener('click', (e) => {
     e.preventDefault();
     document.querySelector('.tab-btn[data-panel="billing"]').click();
