@@ -97,7 +97,8 @@ SMTP_FROM_NAME = os.getenv("VERF_SMTP_FROM_NAME", "VERF")
 # talk to Telegram, fixes it automatically for the ones that do.
 # If this specific IP eventually stops being reliable too, update it here —
 # no code changes needed anywhere else.
-TELEGRAM_API_PINNED_IP = os.getenv("VERF_TELEGRAM_API_PINNED_IP", "149.154.167.220")
+# Empty value (VERF_TELEGRAM_API_PINNED_IP=) disables pinning entirely.
+TELEGRAM_API_PINNED_IP = os.getenv("VERF_TELEGRAM_API_PINNED_IP", "149.154.167.220").strip()
 
 # --- Admin Telegram alerts (new registrations, server health) ---
 # Separate bot from any customer-facing bot — create a small dedicated one

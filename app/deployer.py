@@ -141,7 +141,7 @@ def run_container(
             cpu_period=100_000,
             cpu_quota=cpu_quota,
             restart_policy={"Name": "unless-stopped"},
-            extra_hosts={"api.telegram.org": TELEGRAM_API_PINNED_IP},
+            extra_hosts=({"api.telegram.org": TELEGRAM_API_PINNED_IP} if TELEGRAM_API_PINNED_IP else None),
         )
     except Exception as exc:
         if old is not None:
