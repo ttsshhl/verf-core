@@ -241,6 +241,16 @@
   .toast{ background:var(--blue); color:#fff; border-radius:999px; }
   #trial-banner{ font-weight:600; background:var(--accent-dim); color:var(--ink); border-bottom:1px solid var(--line); }
 
+  /* ---------- input fields: light, so they stand out from the dark cards ---------- */
+  input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea{
+    background:#F3F6FF !important; color:#0B1B45 !important; border:1.5px solid #C9D5F2 !important; color-scheme:light;
+  }
+  input::placeholder, textarea::placeholder{ color:#7A88B5 !important; opacity:1; }
+  input:not([type=file]):focus, select:focus, textarea:focus{ border-color:#FC734D !important; box-shadow:0 0 0 4px rgba(252,115,77,.22) !important; outline:none; background:#FFFFFF !important; }
+  select option{ background:#FFFFFF; color:#0B1B45; }
+  #toggle-password, #toggle-password-confirm{ color:#52618A !important; }
+  .field label, label{ color:#C4D0F2; }
+
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
 </head>
