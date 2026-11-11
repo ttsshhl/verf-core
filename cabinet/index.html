@@ -10,18 +10,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #F3F6FD;
-    --bg-paper: #FFFFFF;
-    --ink: #06205F;
-    --ink-soft: #5A6C95;
-    --grid: #E3EBFA;
+    --bg: #0C1B52;
+    --bg-paper: #142869;
+    --surface-2: #1B3180;
+    --ink: #E9EEFF;
+    --ink-soft: #A9B6E0;
+    --grid: #2A3F8F;
     --accent: #FC734D;
-    --accent-dim: #FFE6DD;
-    --brass: #1B4BB8;
+    --accent-dim: rgba(252,115,77,.14);
+    --brass: #A9C0FF;
     --live: #14B889;
-    --danger: #D14343;
-    --line: #D9E2F5;
-    --blue: #09318D;
+    --danger: #FF6B6B;
+    --line: #2C4296;
+    --blue: #1B4BB8;
     --radius: 14px;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -64,7 +65,7 @@
   .field label{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; }
   .field input{
     width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:4px;
-    background:#fff; color:var(--ink); outline:none; transition:border-color .15s;
+    background:var(--surface-2); color:var(--ink); outline:none; transition:border-color .15s;
   }
   .field input:focus{ border-color:var(--ink); }
 
@@ -81,7 +82,7 @@
 
   .error-msg{
     font-size:13px; color:var(--danger); margin-top:14px; padding:10px 12px;
-    background:#FCEBEB; border-radius:4px; display:none;
+    background:rgba(255,107,107,.12); border-radius:4px; display:none;
   }
   .error-msg.show{ display:block; }
 
@@ -148,7 +149,7 @@
     border:1px dashed var(--line); border-radius:6px; padding:20px; margin-bottom:24px; background:var(--bg-paper);
   }
   .source-tab-btn{
-    padding:7px 14px; border:1px solid var(--line); background:#fff; border-radius:4px;
+    padding:7px 14px; border:1px solid var(--line); background:var(--surface-2); border-radius:4px;
     font-size:12.5px; cursor:pointer; color:var(--ink-soft); font-family:inherit;
   }
   .source-tab-btn.active{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
@@ -156,7 +157,7 @@
   .form-row.full{ grid-template-columns:1fr; }
   .field-sm label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; }
   .field-sm input, .field-sm select{
-    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink);
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--ink);
   }
 
   .empty-state{ text-align:center; padding:48px 20px; color:var(--ink-soft); font-size:14px; }
@@ -187,57 +188,58 @@
     .form-row{ grid-template-columns:1fr; }
   }
 
-  /* ---------- redesign: matches landing (blue / white / orange) ---------- */
+  /* ---------- dark theme: matches landing ---------- */
   .blueprint-bg{ background-image:none; }
-  body{ background:var(--bg); }
-  #auth-screen{ background:linear-gradient(180deg,#09318D 0%,#0C3FAE 55%,#1B4BB8 100%); }
-  .auth-card{ background:#fff; border:none; border-radius:24px; padding:40px 34px; box-shadow:0 30px 70px rgba(4,20,70,.35); }
-  .auth-logo, .logo{ letter-spacing:-.01em; }
-  .auth-logo .mark, .logo .mark{ width:16px; height:16px; border:none; border-radius:50%; background:var(--accent); box-shadow:0 0 0 5px rgba(252,115,77,.22); }
+  body{ background:var(--bg); color:var(--ink); color-scheme:dark; }
+  #auth-screen{ background:radial-gradient(700px 420px at 50% 40%, rgba(70,110,230,.3), transparent 72%), linear-gradient(180deg,#0A1745 0%,#0E2062 60%,#12297A 100%); }
+  .auth-card{ background:var(--bg-paper); border:1px solid var(--line); border-radius:24px; padding:40px 34px; box-shadow:0 30px 70px rgba(0,0,0,.55); }
+  .auth-logo, .logo{ letter-spacing:-.01em; color:#fff; }
+  .auth-logo .mark, .logo .mark{ width:14px; height:14px; border:none; border-radius:50%; background:var(--accent); box-shadow:none; }
   .auth-logo .mark::after, .logo .mark::after{ display:none; }
-  .auth-tabs{ border:none; background:#EEF3FC; border-radius:999px; padding:4px; }
-  .auth-tab{ border-radius:999px; font-weight:700; }
+  .auth-tabs{ border:none; background:var(--surface-2); border-radius:999px; padding:4px; }
+  .auth-tab{ border-radius:999px; font-weight:700; color:var(--ink-soft); }
   .auth-tab.active{ background:var(--blue); color:#fff; }
-  .field input, .field-sm input, .field-sm select{ border-radius:12px; border:1.5px solid var(--line); padding:11px 14px; }
-  .field input:focus, .field-sm input:focus, .field-sm select:focus{ border-color:var(--brass); outline:none; box-shadow:0 0 0 4px rgba(27,75,184,.12); }
+  .field input, .field-sm input, .field-sm select, select, input[type=text], input[type=email], input[type=password]{
+    border-radius:12px; border:1.5px solid var(--line); padding:11px 14px; background:var(--surface-2); color:var(--ink); }
+  ::placeholder{ color:#7F90C4; }
+  .field input:focus, .field-sm input:focus, .field-sm select:focus{ border-color:#4C6FD6; outline:none; box-shadow:0 0 0 4px rgba(76,111,214,.2); }
   .btn{ border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; padding:12px 22px; transition:transform .15s, box-shadow .15s, opacity .15s; }
-  .btn:hover{ opacity:1; transform:translateY(-1px); box-shadow:0 10px 24px rgba(9,49,141,.28); }
-  .btn-ghost{ background:#fff; color:var(--blue); border:1.5px solid var(--line); }
-  .btn-danger{ background:#fff; border:1.5px solid var(--danger); color:var(--danger); }
-  #np-submit, .btn-accent{ background:var(--accent); color:var(--ink); }
-  .error-msg{ border-radius:12px; }
+  .btn:hover{ opacity:1; transform:translateY(-1px); box-shadow:0 10px 24px rgba(0,0,0,.45); }
+  .btn-ghost{ background:var(--surface-2); color:var(--ink); border:1.5px solid var(--line); }
+  .btn-danger{ background:transparent; border:1.5px solid var(--danger); color:var(--danger); }
+  #np-submit, .btn-accent{ background:var(--accent); color:#06205F; }
+  .error-msg{ border-radius:12px; color:#FF9A9A; }
 
-  header{ background:linear-gradient(180deg,#09318D,#0C3FAE); border-bottom:none; backdrop-filter:none; padding:18px 0; }
+  header{ background:linear-gradient(180deg,#0A1845,#10246B); border-bottom:1px solid var(--line); backdrop-filter:none; padding:18px 0; }
   .header-inner, .wrap{ max-width:1000px; }
-  .logo{ color:#fff; font-size:20px; font-weight:800; }
-  .user-info{ color:rgba(255,255,255,.75); }
-  header .icon-btn{ background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.4); border-radius:999px; padding:7px 16px; font-family:'Manrope',sans-serif; font-weight:700; }
-  header .icon-btn:hover{ background:rgba(255,255,255,.12); border-color:#fff; color:#fff; }
+  .logo{ font-size:20px; font-weight:800; }
+  .user-info{ color:var(--ink-soft); }
+  header .icon-btn{ background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.25); border-radius:999px; padding:7px 16px; font-family:'Manrope',sans-serif; font-weight:700; }
+  header .icon-btn:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.5); color:#fff; }
 
   .tabs{ border-bottom:none; gap:6px; margin:28px 0 22px; }
   .tab-btn{ margin:0; padding:9px 20px; border:none; border-radius:999px; font-weight:700; color:var(--ink-soft); background:transparent; }
-  .tab-btn:hover{ background:#E6EDFB; }
+  .tab-btn:hover{ background:var(--surface-2); color:#fff; }
   .tab-btn.active{ background:var(--blue); color:#fff; }
 
-  .section-title{ font-weight:800; letter-spacing:-.01em; }
-  .project-card, .plan-card, .new-project-form{ background:#fff; border:1px solid var(--line); border-radius:20px; box-shadow:0 10px 30px rgba(9,49,141,.06); }
-  .new-project-form{ border-style:solid; padding:26px; }
-  .project-detail{ border-top-color:var(--line); }
-  .deploy-row{ border-top-color:var(--line); }
+  .section-title{ font-weight:800; letter-spacing:-.01em; color:#fff; }
+  .project-card, .plan-card, .new-project-form{ background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; box-shadow:0 20px 40px -24px rgba(0,0,0,.7); }
+  .new-project-form{ padding:26px; }
+  .project-detail, .deploy-row{ border-top-color:var(--line); }
   .project-url{ color:var(--brass); font-weight:500; }
-  .kind-tag{ background:#EEF3FC; border:none; color:var(--brass); font-weight:600; }
-  .icon-btn{ border-radius:999px; border:1.5px solid var(--line); }
-  .icon-btn:hover{ border-color:var(--brass); color:var(--brass); }
-  .source-tab-btn{ border-radius:999px; border:1.5px solid var(--line); font-weight:600; }
+  .kind-tag{ background:var(--surface-2); border:none; color:var(--brass); font-weight:600; }
+  .icon-btn{ border-radius:999px; border:1.5px solid var(--line); color:var(--ink); background:transparent; }
+  .icon-btn:hover{ border-color:#4C6FD6; color:#fff; }
+  .source-tab-btn{ border-radius:999px; border:1.5px solid var(--line); font-weight:600; background:transparent; color:var(--ink-soft); }
   .source-tab-btn.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
-  .webhook-box{ background:#06205F; border-radius:12px; }
-  .webhook-box .lbl{ color:#8FA6DA; }
+  .webhook-box{ background:#0A1744; color:#E9EEFF; border:1px solid var(--line); border-radius:12px; }
+  .webhook-box .lbl{ color:#7F9CEB; }
   .status-pending, .status-cloning, .status-building, .status-starting{ background:var(--accent); }
-  .plan-badge{ background:#EEF3FC; border:none; color:var(--blue); font-weight:600; }
-  .plan-card .price{ color:var(--blue); font-weight:800; }
-  .empty-state{ background:#fff; border:1.5px dashed var(--line); border-radius:20px; }
-  .toast{ background:var(--blue); border-radius:999px; }
-  #trial-banner{ font-weight:600; }
+  .plan-badge{ background:var(--surface-2); border:none; color:var(--ink); font-weight:600; }
+  .plan-card .price{ color:#fff; font-weight:800; }
+  .empty-state{ background:var(--bg-paper); border:1.5px dashed var(--line); border-radius:20px; }
+  .toast{ background:var(--blue); color:#fff; border-radius:999px; }
+  #trial-banner{ font-weight:600; background:var(--accent-dim); color:var(--ink); border-bottom:1px solid var(--line); }
 
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
@@ -387,8 +389,8 @@
               <label>Переменные окружения <span style="color:var(--ink-soft); font-weight:400;">(необязательно)</span></label>
               <div id="np-env-rows" style="margin-top:5px;"></div>
               <div style="display:flex; gap:6px; margin-top:4px;">
-                <input type="text" id="np-env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
-                <input type="text" id="np-env-new-value" placeholder="ЗНАЧЕНИЕ ПЕРЕМЕННОЙ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                <input type="text" id="np-env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+                <input type="text" id="np-env-new-value" placeholder="ЗНАЧЕНИЕ ПЕРЕМЕННОЙ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
                 <button type="button" class="btn btn-ghost btn-sm" id="np-env-add-btn" style="flex-shrink:0;">Добавить</button>
               </div>
             </div>
@@ -642,7 +644,7 @@ function renderProjects(projects){
 
         <div class="domain-section" data-slug="${p.slug}" style="margin-bottom:12px;">
           ${p.custom_domain ? `
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:#fff;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2);">
             <span style="font-size:12.5px;">🌐 <a href="${p.custom_domain_url}" target="_blank" rel="noopener" style="color:var(--brass);">${p.custom_domain}</a></span>
             <div style="display:flex; gap:6px;">
               <button class="icon-btn domain-retry-btn">проверить сертификат ещё раз</button>
@@ -668,8 +670,8 @@ function renderProjects(projects){
           <div style="font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Переменные окружения</div>
           <div class="env-rows-list">${renderEnvRowsHtml(p.env)}</div>
           <div style="display:flex; gap:6px; margin-top:8px;">
-            <input type="text" class="env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
-            <input type="text" class="env-new-value" placeholder="значение" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <input type="text" class="env-new-key" placeholder="КЛЮЧ" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
+            <input type="text" class="env-new-value" placeholder="значение" style="flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:12px;">
             <button type="button" class="btn btn-ghost btn-sm env-add-btn" style="flex-shrink:0;">Добавить</button>
           </div>
         </div>
@@ -680,7 +682,7 @@ function renderProjects(projects){
 
         <div class="logs-section" data-slug="${p.slug}" style="margin-top:12px;">
           <button type="button" class="icon-btn logs-toggle-btn">показать логи контейнера</button>
-          <div class="logs-box mono" style="display:none; margin-top:8px; background:var(--ink); color:#B9C6D6; border-radius:4px; padding:10px 12px; font-size:11.5px; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
+          <div class="logs-box mono" style="display:none; margin-top:8px; background:#0A1744; color:#B9C6D6; border-radius:4px; padding:10px 12px; font-size:11.5px; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
         </div>
       </div>
     </div>
@@ -720,7 +722,7 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
               <span style="color:var(--ink-soft); margin-left:auto;">${new Date(d.created_at).toLocaleString('ru-RU')}</span>
               ${d.status === 'failed' ? '<span style="color:var(--danger); font-size:11px;">показать причину ▾</span>' : ''}
             </div>
-            ${d.status === 'failed' ? `<div id="deploy-log-${i}" style="display:none; margin:4px 0 8px; padding:8px 10px; background:var(--ink); color:#B9C6D6; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto;">${escapeHtml(d.log || '(лог пуст)')}</div>` : ''}
+            ${d.status === 'failed' ? `<div id="deploy-log-${i}" style="display:none; margin:4px 0 8px; padding:8px 10px; background:#0A1744; color:#B9C6D6; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto;">${escapeHtml(d.log || '(лог пуст)')}</div>` : ''}
           `).join('');
         }
       }catch(err){
@@ -860,7 +862,7 @@ function renderEnvRowsHtml(env){
     return '<div style="font-size:12px; color:var(--ink-soft); padding:2px 0 6px;">Переменных пока нет</div>';
   }
   return entries.map(([k, v]) => `
-    <div class="env-row" data-key="${escapeHtml(k)}" data-value="${escapeHtml(v)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; margin-bottom:6px;">
+    <div class="env-row" data-key="${escapeHtml(k)}" data-value="${escapeHtml(v)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); margin-bottom:6px;">
       <span class="mono" style="font-weight:600; font-size:12px; color:var(--ink); min-width:100px; word-break:break-all;">${escapeHtml(k)}</span>
       <span class="env-row-value mono" style="flex:1; font-size:12px; color:var(--ink-soft); word-break:break-all;">••••••••</span>
       <button type="button" class="icon-btn env-reveal-btn" style="flex-shrink:0;">показать</button>
@@ -987,7 +989,7 @@ function renderNpEnvRows(){
   const entries = Object.entries(npEnvVars);
   if(entries.length === 0){ container.innerHTML = ''; return; }
   container.innerHTML = entries.map(([k, v]) => `
-    <div class="env-row" data-key="${escapeHtml(k)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:#fff; margin-bottom:6px;">
+    <div class="env-row" data-key="${escapeHtml(k)}" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); margin-bottom:6px;">
       <span class="mono" style="font-weight:600; font-size:12px; color:var(--ink); min-width:100px; word-break:break-all;">${escapeHtml(k)}</span>
       <span class="mono" style="flex:1; font-size:12px; color:var(--ink-soft); word-break:break-all;">${escapeHtml(v)}</span>
       <button type="button" class="icon-btn np-env-remove-btn" data-key="${escapeHtml(k)}" style="flex-shrink:0; color:var(--danger); border-color:var(--danger);">удалить</button>
@@ -1172,11 +1174,11 @@ function renderTrialBanner(daysLeft){
   banner.style.position = 'relative';
   banner.style.paddingRight = '48px';
   if(daysLeft < 0){
-    banner.style.background = 'var(--danger)';
+    banner.style.background = '#B42318';
     banner.style.color = '#fff';
     banner.innerHTML = 'Пробный период закончился — новые деплои недоступны. <a href="#" id="trial-upgrade-link" style="color:#fff; text-decoration:underline; font-weight:600;">Оформить тариф</a>, чтобы продолжить';
   }else if(daysLeft <= 2){
-    banner.style.background = 'var(--danger)';
+    banner.style.background = '#B42318';
     banner.style.color = '#fff';
     const word = daysLeft === 1 ? 'день' : 'дня';
     banner.innerHTML = `Пробный период заканчивается — остал${daysLeft === 1 ? 'ся' : 'ось'} ${daysLeft} ${word}. <a href="#" id="trial-upgrade-link" style="color:#fff; text-decoration:underline; font-weight:600;">Оформить тариф</a>`;
@@ -1262,11 +1264,11 @@ if(token){
 </script>
 
 <div id="support-widget" style="position:fixed; bottom:20px; right:20px; z-index:150; font-family:'Manrope', system-ui, sans-serif;">
-  <div id="support-popup" style="display:none; margin-bottom:10px; background:var(--bg-paper); border:1px solid var(--line); border-radius:8px; padding:14px 16px; box-shadow:0 6px 20px rgba(15,33,56,0.18); min-width:210px;">
+  <div id="support-popup" style="display:none; margin-bottom:10px; background:var(--bg-paper); border:1px solid var(--line); border-radius:16px; padding:14px 16px; box-shadow:0 6px 20px rgba(15,33,56,0.18); min-width:210px;">
     <a href="https://t.me/houetoon" target="_blank" rel="noopener" style="display:block; font-size:13.5px; font-weight:600; color:var(--ink); text-decoration:none;">Написать в поддержку</a>
     <div style="font-size:11.5px; color:var(--ink-soft); margin-top:3px;">Ответим в Telegram</div>
   </div>
-  <button type="button" id="support-btn" style="width:52px; height:52px; border-radius:50%; background:var(--ink); color:var(--bg); border:none; cursor:pointer; box-shadow:0 4px 14px rgba(15,33,56,0.28); display:flex; align-items:center; justify-content:center;" aria-label="Поддержка">
+  <button type="button" id="support-btn" style="width:52px; height:52px; border-radius:50%; background:#12307F; color:#fff; border:1px solid rgba(255,255,255,.16); cursor:pointer; box-shadow:0 4px 14px rgba(15,33,56,0.28); display:flex; align-items:center; justify-content:center;" aria-label="Поддержка">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
   </button>
 </div>
