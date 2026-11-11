@@ -4,7 +4,15 @@ import json
 import subprocess
 from datetime import datetime, timedelta, timezone
 
-from app.config import FREE_TRIAL_DAYS
+import pytest
+
+FREE_TRIAL_DAYS = 14
+
+
+@pytest.fixture(autouse=True)
+def _trial_mode(monkeypatch):
+    from app import config
+    monkeypatch.setattr(config, "FREE_TRIAL_DAYS", FREE_TRIAL_DAYS)
 from pathlib import Path
 
 import pytest

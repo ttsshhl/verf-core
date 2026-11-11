@@ -29,8 +29,8 @@ TRAEFIK_CERTRESOLVER = os.getenv("VERF_TRAEFIK_CERTRESOLVER", "le")
 # Per-container resource limits, now actually tiered by the project owner's plan
 # (previously every project got the same "free" limit regardless of tariff —
 # closing that gap: this is what the landing page has promised all along).
-PLAN_MEM_LIMITS = {"free": "512m", "pro": "2048m", "business": "8192m"}
-PLAN_CPU_QUOTAS = {"free": 50_000, "pro": 100_000, "business": 200_000}  # cpu-period=100000, so 0.5 / 1.0 / 2.0 vCPU
+PLAN_MEM_LIMITS = {"free": "256m", "pro": "2048m", "business": "8192m"}
+PLAN_CPU_QUOTAS = {"free": 25_000, "pro": 100_000, "business": 200_000}  # cpu-period=100000, so 0.25 / 1.0 / 2.0 vCPU
 # Fallback for containers with no resolvable owner plan (e.g. admin-created projects).
 DEFAULT_MEM_LIMIT = os.getenv("VERF_DEFAULT_MEM_LIMIT", PLAN_MEM_LIMITS["free"])
 DEFAULT_CPU_QUOTA = int(os.getenv("VERF_DEFAULT_CPU_QUOTA", str(PLAN_CPU_QUOTAS["free"])))
@@ -49,9 +49,10 @@ JWT_EXPIRE_MINUTES = int(os.getenv("VERF_JWT_EXPIRE_MINUTES", str(60 * 24 * 30))
 PLAN_PROJECT_LIMITS = {"free": 1, "pro": 5, "business": None}
 PLAN_PRICES_RUB = {"pro": 490, "business": 1990}  # launch pricing — see README for rationale
 
-# Free plan is a time-limited trial, not permanent — Pro/Business have no
-# such limit since they're already paid. Counted from User.created_at.
-FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "14"))
+# Free plan length in days, counted from User.created_at. 0 (the default) means
+# Free is free forever — no expiry, no banner. Set e.g. VERF_FREE_TRIAL_DAYS=14
+# to bring back a time-limited trial. Pro/Business never expire either way.
+FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "0"))
 
 # --- ЮKassa (payment provider) ---
 YOOKASSA_SHOP_ID = os.getenv("VERF_YOOKASSA_SHOP_ID", "")

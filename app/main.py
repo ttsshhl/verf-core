@@ -12,10 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+import app.config as app_config
 from app import auth, billing, github as gh, notifications, alerts, trial
 from app.config import (
     ADMIN_API_KEY, DOMAIN_SUFFIX, PLAN_PROJECT_LIMITS, GITHUB_CONNECT_NONCE_TTL_SECONDS,
-    MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR, FREE_TRIAL_DAYS,
+    MAX_UPLOAD_SIZE_MB, WORKSPACE_DIR,
 )
 from app.db import get_db, init_db
 from app.models import Project, Deployment, DeployStatus, User, Subscription, SubscriptionStatus
@@ -210,7 +211,7 @@ def _require_active_trial_or_paid(user: User) -> None:
         raise HTTPException(
             status_code=402,
             detail=(
-                f"Пробный период Free-тарифа ({FREE_TRIAL_DAYS} дней) закончился — "
+                f"Пробный период Free-тарифа ({app_config.FREE_TRIAL_DAYS} дней) закончился — "
                 f"оформи Pro или Business в /billing/subscribe, чтобы продолжить деплоить."
             ),
         )

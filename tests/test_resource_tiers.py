@@ -99,8 +99,8 @@ def _push_and_capture_run_container_call(client, monkeypatch, fake_upstream, tok
 def test_free_plan_gets_free_tier_resources(client, monkeypatch, fake_upstream):
     token = _register(client, "free-tier@example.com")
     captured = _push_and_capture_run_container_call(client, monkeypatch, fake_upstream, token, "free-proj")
-    assert captured["mem_limit"] == "512m"
-    assert captured["cpu_quota"] == 50_000
+    assert captured["mem_limit"] == "256m"
+    assert captured["cpu_quota"] == 25_000
 
 
 def test_pro_plan_gets_pro_tier_resources(client, monkeypatch, fake_upstream):
@@ -161,5 +161,5 @@ def test_admin_created_project_with_no_owner_gets_free_tier_default(client, monk
         headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": "push"},
     )
     assert r.status_code == 200
-    assert captured["mem_limit"] == "512m"
-    assert captured["cpu_quota"] == 50_000
+    assert captured["mem_limit"] == "256m"
+    assert captured["cpu_quota"] == 25_000
