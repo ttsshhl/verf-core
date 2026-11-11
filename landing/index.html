@@ -15,6 +15,7 @@
 <noscript><div><img src="https://mc.yandex.ru/watch/112552789" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 <!-- /Yandex.Metrika counter -->
 <meta charset="UTF-8">
+<meta name="theme-color" content="#050D2A">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VERF — хостинг для сайтов, ботов и AI-агентов</title>
 <meta name="description" content="Пушишь код — получаешь рабочий проект. Хостинг для сайтов, ботов и бэкендов с оплатой в рублях.">
@@ -358,6 +359,33 @@
   @media (prefers-reduced-motion: reduce){
     *{ animation:none !important; transition:none !important; }
   }
+
+
+  /* ---------- dark theme ---------- */
+  :root{
+    --bg:#050D2A; --surface:#0A1745; --line:#1A2B66;
+    --ink:#E9EEFF; --ink-soft:#9DAAD4; --paper:#0A1745;
+  }
+  body{ background:var(--bg); color:var(--ink); }
+  .hero{
+    background:
+      radial-gradient(900px 480px at 50% 50%, rgba(40,80,200,.38), transparent 70%),
+      linear-gradient(180deg, #040B26 0%, #071641 55%, #0A1E5A 100%);
+  }
+  .hero::before{ background-image:radial-gradient(rgba(255,255,255,.14) 1.2px, transparent 1.4px); }
+  .fade{ background:linear-gradient(180deg, #0A1E5A 0%, #081A4E 35%, #061236 70%, #050D2A 100%); }
+  .intro{ background:var(--bg); }
+  .intro .eyebrow, .section-tag{ background:var(--surface); border:1px solid var(--line); color:#9DB5F0; }
+  .btn-line{ background:var(--surface); color:#fff; border-color:var(--line); }
+  h2, .target h3{ color:#fff; }
+  .target{ background:var(--surface); border-color:var(--line); }
+  .target:hover{ box-shadow:0 18px 40px -22px rgba(0,0,0,.8); border-color:#2B4190; }
+  .target .icon{ background:#12308A; }
+  .plan{ background:var(--surface); border-color:var(--line); }
+  .plan.featured{ background:linear-gradient(180deg,#0F3AA0,#0A2A7A); border-color:#2B55C8; box-shadow:0 30px 60px -28px rgba(0,0,0,.8); }
+  footer{ background:#030920; border-top:1px solid var(--line); }
+  #support-popup{ background:var(--surface); border-color:var(--line); }
+  #support-popup a{ color:#fff; }
 
   /* no text jump: show hero text only after the web font is ready */
   .js:not(.ready) .hero-body, .js:not(.ready) .nav{ opacity:0; }
