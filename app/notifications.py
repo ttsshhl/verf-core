@@ -70,13 +70,14 @@ def send_welcome_email(to: str) -> None:
     send_email(to, "Добро пожаловать в VERF", html)
 
 
-def send_payment_confirmation_email(to: str, plan: str, amount_rub: int) -> None:
+def send_payment_confirmation_email(to: str, plan: str, amount_rub: int, expires_at=None) -> None:
     plan_label = {"pro": "Pro", "business": "Business"}.get(plan, plan)
+    until = f" Тариф включён до <b>{expires_at.strftime('%d.%m.%Y')}</b>." if expires_at else ""
     html = _brand_wrapper(f"""
       <h2 style="font-size: 20px; margin-bottom: 12px;">Оплата прошла успешно</h2>
       <p style="font-size: 14px; line-height: 1.6;">
-        Тариф <b>{plan_label}</b> активирован — списано {amount_rub}₽. Подписка продлится автоматически
-        через 30 дней, отменить можно в любой момент в личном кабинете.
+        Тариф <b>{plan_label}</b> активирован — списано {amount_rub}₽.{until}
+        Историю платежей можно посмотреть в личном кабинете, раздел «Тариф».
       </p>
       <a href="https://cabinet.verfdeploy.ru" style="display: inline-block; margin-top: 16px; padding: 10px 20px;
          background: #0F2138; color: #EDF2F6; text-decoration: none; border-radius: 4px; font-size: 14px;">

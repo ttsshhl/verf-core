@@ -57,7 +57,11 @@ FREE_TRIAL_DAYS = int(os.getenv("VERF_FREE_TRIAL_DAYS", "0"))
 # --- ЮKassa (payment provider) ---
 YOOKASSA_SHOP_ID = os.getenv("VERF_YOOKASSA_SHOP_ID", "")
 YOOKASSA_SECRET_KEY = os.getenv("VERF_YOOKASSA_SECRET_KEY", "")
-YOOKASSA_RETURN_URL = os.getenv("VERF_YOOKASSA_RETURN_URL", f"https://{DOMAIN_SUFFIX}/billing/thanks")
+# After paying, ЮKassa sends the user back here. The cabinet sees ?payment=return
+# and immediately starts checking the payment status (no waiting for the webhook).
+YOOKASSA_RETURN_URL = os.getenv("VERF_YOOKASSA_RETURN_URL", "https://cabinet.verfdeploy.ru/?payment=return")
+# Background reconciliation of pending ЮKassa payments, in seconds (0 = off).
+PAYMENT_SYNC_INTERVAL = int(os.getenv("VERF_PAYMENT_SYNC_INTERVAL", "300"))
 
 # --- Cryptomus (crypto payment provider) ---
 CRYPTOMUS_MERCHANT_ID = os.getenv("VERF_CRYPTOMUS_MERCHANT_ID", "")

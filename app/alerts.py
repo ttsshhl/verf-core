@@ -35,3 +35,7 @@ def send_admin_alert(text: str) -> None:
 
 def new_user_registered(email: str) -> None:
     send_admin_alert(f"🆕 Новый пользователь: {email}")
+
+
+def payment_received(email: str, plan: str, amount_rub: int) -> None:
+    send_admin_alert(f"💰 Оплата: {email} — тариф {plan}, {amount_rub}₽")

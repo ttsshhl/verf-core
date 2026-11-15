@@ -40,6 +40,39 @@ def sync_pending(db: Session, background_tasks: BackgroundTasks, user_id: str | 
     return activated
 
 
+def pending_count(db: Session, user_id: str) -> int:
+    return db.query(Subscription).filter_by(
+        user_id=user_id, status=SubscriptionStatus.pending, provider="yookassa"
+    ).count()
+
+
+def sync_once() -> BackgroundTasks:
+    """One full reconciliation pass with its own DB session. Returns the
+    BackgroundTasks holding follow-ups (emails, limits) for the caller to run."""
+    from app.db import SessionLocal
+    db = SessionLocal()
+    try:
+        bt = BackgroundTasks()
+        n = sync_pending(db, bt)
+        if n:
+            print(f"[sync] активировано подписок: {n}")
+        return bt
+    finally:
+        db.close()
+
+
+async def sync_loop(interval: int) -> None:
+    """Runs forever inside the API process: every `interval` seconds asks
+    ЮKassa about pending payments. Never raises — a failed pass just waits."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            bt = await asyncio.to_thread(sync_once)
+            await bt()
+        except Exception as exc:
+            print(f"[sync] ошибка фоновой сверки платежей: {exc}")
+
+
 def main() -> None:
     from app.db import SessionLocal
     db = SessionLocal()

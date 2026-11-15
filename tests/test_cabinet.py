@@ -500,9 +500,9 @@ def test_billing_sync_activates_paid_subscription_without_webhook(client, monkey
     assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "free"
 
     r = client.post("/billing/sync", headers=_auth_headers(token))
-    assert r.status_code == 200 and r.json() == {"activated": 1}
+    assert r.status_code == 200 and r.json()["activated"] == 1 and r.json()["plan"] == "pro"
     assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "pro"
-    assert client.post("/billing/sync", headers=_auth_headers(token)).json() == {"activated": 0}
+    assert client.post("/billing/sync", headers=_auth_headers(token)).json()["activated"] == 0
 
 
 def test_billing_sync_leaves_unpaid_pending(client, monkeypatch):
@@ -513,7 +513,7 @@ def test_billing_sync_leaves_unpaid_pending(client, monkeypatch):
     monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "pending"})
     token = _register(client, email="sync2@example.com")
     client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
-    assert client.post("/billing/sync", headers=_auth_headers(token)).json() == {"activated": 0}
+    assert client.post("/billing/sync", headers=_auth_headers(token)).json()["activated"] == 0
     assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "free"
 
 
@@ -529,3 +529,61 @@ def test_paid_activation_raises_limits_of_running_projects(client, monkeypatch):
     client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
     client.post("/billing/sync", headers=h)
     assert applied and applied[0][0] == "lim-bot" and applied[0][1] != "256m"
+
+
+def test_billing_sync_reports_pending_and_plan(client, monkeypatch):
+    from app import billing
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {"id": "yk_p1", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "pending"})
+    h = _auth_headers(_register(client, email="pend@example.com"))
+    client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
+    assert client.post("/billing/sync", headers=h).json() == {"activated": 0, "pending": 1, "plan": "free"}
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    assert client.post("/billing/sync", headers=h).json() == {"activated": 1, "pending": 0, "plan": "pro"}
+
+
+def test_billing_payments_history_and_active_until(client, monkeypatch):
+    from app import billing
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {"id": "yk_h1", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    h = _auth_headers(_register(client, email="hist@example.com"))
+    empty = client.get("/billing/payments", headers=h).json()
+    assert empty["payments"] == [] and empty["active_until"] is None
+    client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
+    client.post("/billing/sync", headers=h)
+    data = client.get("/billing/payments", headers=h).json()
+    assert data["plan"] == "pro" and data["active_until"]
+    assert data["payments"][0]["status"] == "active" and data["payments"][0]["amount_rub"] == 490
+
+
+def test_payment_activation_alerts_admin_and_emails_expiry(client, monkeypatch):
+    from app import billing, alerts, notifications
+    got = {}
+    monkeypatch.setattr(alerts, "payment_received", lambda email, plan, amount: got.update(alert=(email, plan, amount)))
+    monkeypatch.setattr(notifications, "send_payment_confirmation_email",
+                        lambda to, plan, amount, expires_at=None: got.update(mail=(to, expires_at)))
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {"id": "yk_al", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    h = _auth_headers(_register(client, email="alert@example.com"))
+    client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
+    client.post("/billing/sync", headers=h)
+    assert got["alert"] == ("alert@example.com", "pro", 490)
+    assert got["mail"][0] == "alert@example.com" and got["mail"][1] is not None
+
+
+def test_sync_loop_activates_without_any_user_request(client, monkeypatch):
+    import asyncio
+    from app import billing, sync_payments
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {"id": "yk_loop", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    h = _auth_headers(_register(client, email="loop@example.com"))
+    client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
+
+    import app.db as appdb
+    monkeypatch.setattr(appdb, "SessionLocal", client.SessionLocal)
+
+    async def one_pass():
+        bt = await asyncio.to_thread(sync_payments.sync_once)
+        await bt()
+    asyncio.run(one_pass())
+    assert client.get("/me", headers=h).json()["plan"] == "pro"
