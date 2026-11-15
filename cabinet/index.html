@@ -162,6 +162,27 @@
 
   .empty-state{ text-align:center; padding:48px 20px; color:var(--ink-soft); font-size:14px; }
 
+
+  /* payment status + history */
+  .pay-overlay{ position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center; background:rgba(5,13,42,.72); backdrop-filter:blur(4px); padding:16px; }
+  .pay-overlay.show{ display:flex; }
+  .pay-box{ width:100%; max-width:400px; background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; padding:32px 28px; text-align:center; box-shadow:0 30px 60px -24px rgba(0,0,0,.7); }
+  .pay-box h3{ font-family:'Manrope',sans-serif; font-size:19px; margin:16px 0 8px; color:#fff; }
+  .pay-box p{ font-size:13.5px; line-height:1.6; color:var(--ink-soft); }
+  .pay-spin{ width:34px; height:34px; margin:0 auto; border-radius:50%; border:3px solid var(--line); border-top-color:var(--accent); animation:paySpin .8s linear infinite; }
+  .pay-ok{ width:44px; height:44px; margin:0 auto; border-radius:50%; background:#1F9D55; color:#fff; font-size:24px; line-height:44px; }
+  .pay-box .btn{ margin-top:20px; }
+  @keyframes paySpin{ to{ transform:rotate(360deg); } }
+  .pay-history{ margin-top:32px; }
+  .pay-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .pay-table th{ text-align:left; font-weight:500; color:var(--ink-soft); padding:8px 10px; border-bottom:1px solid var(--line); }
+  .pay-table td{ padding:10px; border-bottom:1px solid var(--line); color:var(--ink); }
+  .pay-st{ display:inline-block; padding:2px 9px; border-radius:99px; font-size:12px; font-weight:600; background:var(--surface-2); }
+  .pay-st.active{ background:rgba(31,157,85,.2); color:#5FD48F; }
+  .pay-st.pending{ background:rgba(252,115,77,.18); color:#FFA489; }
+  .pay-st.canceled, .pay-st.expired{ color:var(--ink-soft); }
+  @media (max-width:640px){ .pay-table .hide-sm{ display:none; } }
+
   /* billing */
   .plan-badge{
     display:inline-flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
@@ -423,7 +444,7 @@
     </div>
 
     <div class="panel" id="panel-billing">
-      <div class="plan-badge">Текущий тариф: <b id="current-plan">—</b></div>
+      <div class="plan-badge">Текущий тариф: <b id="current-plan">—</b><span id="plan-until" style="margin-left:10px; color:var(--ink-soft); font-weight:400;"></span></div>
       <div class="plans-grid">
         <div class="plan-card">
           <h3>Free</h3>
@@ -470,6 +491,10 @@
           </div>
         </div>
       </div>
+      <div class="pay-history">
+        <div class="section-title">История платежей</div>
+        <div id="pay-history-body" style="font-size:13px; color:var(--ink-soft);">Загрузка…</div>
+      </div>
       <p style="margin-top:20px; font-size:12.5px; color:var(--ink-soft);">
         Оплачивая тариф, ты соглашаешься с
         <a href="https://verfdeploy.ru/oferta.html" target="_blank" rel="noopener" style="color:var(--brass);">публичной офертой</a>
@@ -479,6 +504,7 @@
   </div>
 </div>
 
+<div class="pay-overlay" id="pay-overlay"><div class="pay-box" id="pay-box"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1155,7 +1181,8 @@ document.querySelectorAll('.subscribe-btn').forEach(btn => {
       });
       if(data.confirmation_url){
         window.open(data.confirmation_url, '_blank');
-        showToast('Открыта страница оплаты в новой вкладке');
+        // Keep watching in this tab: as soon as the bank confirms, the plan switches on here.
+        watchPayment(600, true);
       }
     }catch(err){
       showToast(err.message, true);
@@ -1164,6 +1191,93 @@ document.querySelectorAll('.subscribe-btn').forEach(btn => {
     }
   });
 });
+
+
+// ---------- payment status ----------
+const PLAN_NAMES = {free:'Free', pro:'Pro', business:'Business'};
+const PAY_STATUS = {active:'Оплачен', pending:'Ожидает оплаты', canceled:'Отменён', expired:'Истёк'};
+let payWatchId = 0;
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function fmtDateTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+}
+
+function showPayBox(html){
+  document.getElementById('pay-box').innerHTML = html;
+  document.getElementById('pay-overlay').classList.add('show');
+}
+function hidePayBox(){
+  payWatchId++;
+  document.getElementById('pay-overlay').classList.remove('show');
+}
+
+async function loadPayments(){
+  const body = document.getElementById('pay-history-body');
+  try{
+    const data = await api('/billing/payments');
+    document.getElementById('plan-until').textContent = data.active_until ? `действует до ${fmtDate(data.active_until)}` : '';
+    if(!data.payments.length){ body.textContent = 'Платежей пока нет.'; return; }
+    const rows = data.payments.map(p => `
+      <tr>
+        <td>${fmtDateTime(p.created_at)}</td>
+        <td>${PLAN_NAMES[p.plan] || p.plan}</td>
+        <td>${p.amount_rub} ₽</td>
+        <td><span class="pay-st ${p.status}">${PAY_STATUS[p.status] || p.status}</span></td>
+        <td class="hide-sm">${p.status === 'active' ? 'до ' + fmtDate(p.expires_at) : '—'}</td>
+      </tr>`).join('');
+    body.innerHTML = `<table class="pay-table"><thead><tr><th>Дата</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th class="hide-sm">Действует</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }catch(err){
+    body.textContent = 'Не удалось загрузить историю платежей.';
+  }
+}
+
+async function applyPlanFromServer(){
+  currentUser = await api('/me');
+  document.getElementById('current-plan').textContent = currentUser.plan;
+  renderTrialBanner(currentUser.trial_days_left);
+  loadPayments();
+  loadProjects();
+}
+
+// Polls /billing/sync until the payment is confirmed or `seconds` run out.
+async function watchPayment(seconds, quiet){
+  const myId = ++payWatchId;
+  const started = Date.now();
+  document.querySelector('.tab-btn[data-panel="billing"]').click();
+  showPayBox(`<div class="pay-spin"></div><h3>Проверяем оплату…</h3><p>Обычно это занимает несколько секунд. Страницу можно не закрывать — тариф включится сам.</p>
+    <button class="btn btn-ghost btn-sm" id="pay-close">Закрыть</button>`);
+  document.getElementById('pay-close').onclick = hidePayBox;
+  const startPlan = currentUser ? currentUser.plan : 'free';
+  while(myId === payWatchId && (Date.now() - started) < seconds * 1000){
+    try{
+      const r = await api('/billing/sync', {method:'POST'});
+      if(myId !== payWatchId) return;
+      // Confirmed now, or already confirmed a moment ago by ЮKassa's own notification.
+      const planChanged = quiet ? r.plan !== startPlan : r.plan !== 'free';
+      if(r.activated || (r.pending === 0 && planChanged)){
+        await applyPlanFromServer();
+        showPayBox(`<div class="pay-ok">✓</div><h3>Тариф ${PLAN_NAMES[r.plan] || r.plan} включён</h3><p>Оплата получена, лимиты проектов уже обновлены. Спасибо!</p>
+          <button class="btn btn-primary" id="pay-done">Отлично</button>`);
+        document.getElementById('pay-done').onclick = hidePayBox;
+        return;
+      }
+      if(r.pending === 0) break; // nothing is waiting for payment any more (e.g. cancelled)
+    }catch(e){ /* network blip — keep trying */ }
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  if(myId !== payWatchId) return;
+  loadPayments();
+  showPayBox(`<h3>Платёж пока не подтверждён</h3><p>Если вы уже оплатили, банку иногда нужно до пары минут. Мы продолжим проверять автоматически и пришлём письмо, как только тариф включится. Если оплату не завершали — просто закройте это окно.</p>
+    <button class="btn btn-ghost" id="pay-close2">Понятно</button>`);
+  document.getElementById('pay-close2').onclick = hidePayBox;
+}
 
 // ---------- boot ----------
 function hideBootLoader(){
@@ -1224,7 +1338,13 @@ async function enterApp(){
     document.getElementById('app').style.display = 'block';
     try{ serverInfo = await api('/server-info'); }catch(err){ /* fall back to placeholder text in cards */ }
     loadProjects();
+    loadPayments();
     refreshGithubStatus();
+
+    if(new URLSearchParams(window.location.search).get('payment') === 'return'){
+      window.history.replaceState({}, '', window.location.pathname);
+      watchPayment(30, false);
+    }
 
     if(new URLSearchParams(window.location.search).get('github') === 'connected'){
       showToast('GitHub подключён!');

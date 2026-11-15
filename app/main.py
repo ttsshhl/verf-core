@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import secrets
@@ -32,7 +33,14 @@ from app.webhook import verify_signature, extract_push_info
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    from app import config as _cfg
+    from app.sync_payments import sync_loop
+    task = asyncio.create_task(sync_loop(_cfg.PAYMENT_SYNC_INTERVAL)) if _cfg.PAYMENT_SYNC_INTERVAL > 0 else None
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
 
 
 app = FastAPI(title="VERF core", version="0.1.0", lifespan=lifespan)
@@ -511,8 +519,40 @@ def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user),
 def billing_sync(background_tasks: BackgroundTasks, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Safety net for a missed ЮKassa webhook: checks the caller's pending
     payments against ЮKassa's API and activates the plan if they were paid."""
-    from app.sync_payments import sync_pending
-    return {"activated": sync_pending(db, background_tasks, user_id=user.id)}
+    from app.sync_payments import sync_pending, pending_count
+    activated = sync_pending(db, background_tasks, user_id=user.id)
+    db.refresh(user)
+    return {"activated": activated, "pending": pending_count(db, user.id), "plan": user.plan}
+
+
+def _iso(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
+@app.get("/billing/payments")
+def billing_payments(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Payment history plus the date the current plan runs until."""
+    subs = db.query(Subscription).filter_by(user_id=user.id).order_by(Subscription.created_at.desc()).limit(50).all()
+    now = datetime.now(timezone.utc)
+    active_until = None
+    items = []
+    for s in subs:
+        exp = s.expires_at.replace(tzinfo=timezone.utc) if s.expires_at and s.expires_at.tzinfo is None else s.expires_at
+        status = s.status.value if hasattr(s.status, "value") else str(s.status)
+        if status == "active" and exp and exp < now:
+            status = "expired"
+        if status == "active" and exp and (active_until is None or exp > active_until):
+            active_until = exp
+        items.append({
+            "id": s.id, "plan": s.plan, "status": status, "provider": s.provider,
+            "amount_rub": s.amount_rub, "created_at": _iso(s.created_at),
+            "activated_at": _iso(s.activated_at), "expires_at": _iso(s.expires_at),
+        })
+    return {"plan": user.plan, "active_until": _iso(active_until), "payments": items}
 
 
 @app.post("/webhook/yookassa")
@@ -579,6 +619,10 @@ def _activate_subscription(db: Session, subscription: Subscription, background_t
     background_tasks.add_task(
         _send_email_best_effort,
         notifications.send_payment_confirmation_email,
+        subscription.user.email, subscription.plan, subscription.amount_rub, subscription.expires_at,
+    )
+    background_tasks.add_task(
+        _send_alert_best_effort, alerts.payment_received,
         subscription.user.email, subscription.plan, subscription.amount_rub,
     )
     # Resolved synchronously (db is still valid here) — the background task

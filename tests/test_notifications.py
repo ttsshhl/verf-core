@@ -153,7 +153,7 @@ def test_yookassa_webhook_sends_payment_confirmation_email(client, monkeypatch):
     captured = {}
     monkeypatch.setattr(
         notifications, "send_payment_confirmation_email",
-        lambda to, plan, amount: captured.update(to=to, plan=plan, amount=amount),
+        lambda to, plan, amount, expires_at=None: captured.update(to=to, plan=plan, amount=amount, expires_at=expires_at),
     )
     monkeypatch.setattr(billing, "fetch_payment", lambda payment_id: {"id": payment_id, "status": "succeeded"})
 
@@ -175,7 +175,7 @@ def test_payment_activation_succeeds_even_if_email_sending_fails(client, monkeyp
     token = r.json()["access_token"]
     client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "business"})
 
-    def boom(to, plan, amount):
+    def boom(to, plan, amount, expires_at=None):
         raise notifications.EmailError("SMTP is down")
 
     monkeypatch.setattr(notifications, "send_payment_confirmation_email", boom)
