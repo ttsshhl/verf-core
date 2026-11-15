@@ -97,6 +97,15 @@ def _labels(slug: str, internal_port: int, custom_domain: str | None = None) -> 
     return labels
 
 
+DATA_MOUNT = "/data"
+
+
+def data_volume_name(slug: str) -> str:
+    """Per-project named Docker volume that survives redeploys / container
+    recreation. Mounted at /data inside the user's container."""
+    return f"verf-data-{slug}"
+
+
 def run_container(
     slug: str, image_tag: str, internal_port: int, env: dict | None = None,
     mem_limit: str = DEFAULT_MEM_LIMIT, cpu_quota: int = DEFAULT_CPU_QUOTA,
@@ -135,9 +144,11 @@ def run_container(
             name=container_name,
             detach=True,
             network=DOCKER_NETWORK,
-            environment=env or {},
+            environment={"DATA_DIR": DATA_MOUNT, **(env or {})},
+            volumes={data_volume_name(slug): {"bind": DATA_MOUNT, "mode": "rw"}},
             labels=_labels(slug, internal_port, custom_domain),
             mem_limit=mem_limit,
+            memswap_limit=mem_limit,  # no swap for user containers: one greedy bot must not push the whole host into swap thrash
             cpu_period=100_000,
             cpu_quota=cpu_quota,
             restart_policy={"Name": "unless-stopped"},
@@ -225,6 +236,12 @@ def stop_and_remove(slug: str) -> None:
         c.remove()
     except Exception:
         pass  # already gone — deleting a project should be idempotent
+    # The project is being deleted for good: drop its persistent data too, so a
+    # different user who later picks the same slug never sees the old files.
+    try:
+        client.volumes.get(data_volume_name(slug)).remove(force=True)
+    except Exception:
+        pass
 
 
 def get_container_logs(slug: str, tail: int = 200) -> str:

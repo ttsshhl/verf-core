@@ -507,6 +507,14 @@ def subscribe(payload: SubscribeRequest, user: User = Depends(get_current_user),
     )
 
 
+@app.post("/billing/sync")
+def billing_sync(background_tasks: BackgroundTasks, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Safety net for a missed ЮKassa webhook: checks the caller's pending
+    payments against ЮKassa's API and activates the plan if they were paid."""
+    from app.sync_payments import sync_pending
+    return {"activated": sync_pending(db, background_tasks, user_id=user.id)}
+
+
 @app.post("/webhook/yookassa")
 async def yookassa_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.json()
