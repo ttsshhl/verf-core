@@ -208,3 +208,25 @@ def test_expose_detection_is_case_insensitive(tmp_path, monkeypatch):
 def test_expose_detection_ignores_leading_whitespace():
     from app.builder import _detect_exposed_port
     assert _detect_exposed_port("FROM alpine\n    EXPOSE 9000\n") == 9000
+
+
+def test_git_auth_env_only_for_github_with_token():
+    env = builder._git_auth_env("https://github.com/o/r.git", "tok123")
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    assert "tok123" not in env["GIT_CONFIG_VALUE_0"]  # only base64, never raw
+    import base64
+    assert base64.b64decode(env["GIT_CONFIG_VALUE_0"].split()[-1]).decode() == "x-access-token:tok123"
+    assert builder._git_auth_env("https://github.com/o/r.git", None) is None
+    assert builder._git_auth_env("https://evil.example/o/r.git", "tok123") is None
+    assert builder._git_auth_env("https://github.com.evil.example/o/r.git", "tok123") is None
+
+
+def test_clone_private_repo_failure_has_helpful_hint(tmp_path, monkeypatch):
+    def boom(cmd, cwd=None, env=None):
+        raise BuildError("fatal: could not read Username for 'https://github.com': No such device or address")
+    monkeypatch.setattr(builder, "_run", boom)
+    with pytest.raises(BuildError) as e:
+        builder.clone_or_pull("priv1", "https://github.com/o/private.git", "main")
+    assert "Подключить GitHub" in str(e.value)
+    assert "could not read Username" in str(e.value)

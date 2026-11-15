@@ -3,13 +3,16 @@
 Everything in this module is pure filesystem/subprocess work — no Docker
 required — so it's fully testable without a Docker daemon.
 """
+import base64
 import hashlib
+import os
 import re
 import shutil
 import subprocess
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.config import WORKSPACE_DIR
 
@@ -22,19 +25,53 @@ def project_dir(slug: str) -> Path:
     return WORKSPACE_DIR / slug
 
 
-def clone_or_pull(slug: str, repo_url: str, branch: str = "main") -> str:
+def _git_auth_env(repo_url: str, token: str | None) -> dict | None:
+    """Env that makes git send the user's GitHub OAuth token for github.com only.
+
+    Uses GIT_CONFIG_* env vars (git >= 2.31) instead of embedding the token in
+    the URL or argv: nothing is written to .git/config, nothing shows up in
+    `ps`, and GIT_TERMINAL_PROMPT=0 makes git fail fast instead of asking for
+    a username. Returns None when there is no token or the remote isn't GitHub.
+    """
+    if not token or urlparse(repo_url).hostname != "github.com":
+        return None
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    env = dict(os.environ)
+    env.update({
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+        "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}",
+    })
+    return env
+
+
+def clone_or_pull(slug: str, repo_url: str, branch: str = "main", token: str | None = None) -> str:
     """Clone the repo on first deploy, or fetch+reset on subsequent ones.
 
-    Returns the resolved commit SHA that was checked out.
+    `token` is the owner's GitHub OAuth token; it is what makes private
+    repositories work. Returns the resolved commit SHA that was checked out.
     """
     target = project_dir(slug)
+    env = _git_auth_env(repo_url, token)
+    if env is None:
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
 
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        _run(["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(target)])
-    else:
-        _run(["git", "fetch", "origin", branch], cwd=target)
-        _run(["git", "reset", "--hard", f"origin/{branch}"], cwd=target)
+    try:
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _run(["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(target)], env=env)
+        else:
+            _run(["git", "fetch", "origin", branch], cwd=target, env=env)
+            _run(["git", "reset", "--hard", f"origin/{branch}"], cwd=target, env=env)
+    except BuildError as exc:
+        msg = str(exc)
+        if "could not read Username" in msg or "Authentication failed" in msg or "not found" in msg.lower():
+            hint = ("Не удалось получить доступ к репозиторию. Если он приватный — подключите GitHub "
+                    "в кабинете (кнопка «Подключить GitHub») и повторите деплой; "
+                    "если уже подключали — отключите и подключите заново, чтобы выдать доступ к приватным репозиториям.")
+            raise BuildError(hint + "\n" + msg) from None
+        raise
 
     sha = _run(["git", "rev-parse", "HEAD"], cwd=target).stdout.strip()
     return sha
@@ -113,8 +150,8 @@ def _safe_extract(zf: zipfile.ZipFile, target: Path) -> None:
     zf.extractall(target)
 
 
-def _run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=120)
+def _run(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> subprocess.CompletedProcess:
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=120, env=env)
     if result.returncode != 0:
         raise BuildError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
     return result
