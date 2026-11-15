@@ -18,7 +18,8 @@ def run_deploy(db: Session, project: Project, deployment: Deployment) -> None:
     def get_source(log, set_status) -> str:
         set_status(DeployStatus.cloning)
         log(f"→ Клонирую {project.repo_url} ({project.branch})")
-        sha = builder.clone_or_pull(project.slug, project.repo_url, project.branch)
+        token = project.owner.github_token if project.owner else None
+        sha = builder.clone_or_pull(project.slug, project.repo_url, project.branch, token=token)
         log(f"→ Коммит {sha[:8]}")
         return sha
 
