@@ -515,3 +515,17 @@ def test_billing_sync_leaves_unpaid_pending(client, monkeypatch):
     client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
     assert client.post("/billing/sync", headers=_auth_headers(token)).json() == {"activated": 0}
     assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "free"
+
+
+def test_paid_activation_raises_limits_of_running_projects(client, monkeypatch):
+    from app import billing, deployer
+    applied = []
+    monkeypatch.setattr(deployer, "update_limits", lambda slug, mem, cpu: applied.append((slug, mem, cpu)) or True)
+    monkeypatch.setattr(deployer, "resume_container", lambda slug: False)
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sid: {"id": "yk_lim", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    h = _auth_headers(_register(client, email="lim@example.com"))
+    client.post("/me/projects", headers=h, json={"slug": "lim-bot", "repo_url": "https://x.git", "branch": "main", "kind": "bot"})
+    client.post("/billing/subscribe", headers=h, json={"plan": "pro"})
+    client.post("/billing/sync", headers=h)
+    assert applied and applied[0][0] == "lim-bot" and applied[0][1] != "256m"

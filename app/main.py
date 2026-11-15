@@ -586,6 +586,22 @@ def _activate_subscription(db: Session, subscription: Subscription, background_t
     # response is sent, before background tasks run.
     project_slugs = [p.slug for p in subscription.user.projects]
     background_tasks.add_task(_resume_paused_projects_best_effort, project_slugs)
+    background_tasks.add_task(_apply_plan_limits_best_effort, project_slugs, subscription.plan)
+
+
+def _apply_plan_limits_best_effort(project_slugs: list[str], plan: str) -> None:
+    """After an upgrade, raise the limits of the user's running containers
+    right away (no redeploy needed). Best-effort — a failure here must never
+    break the payment flow."""
+    from app import deployer
+    from app.config import PLAN_MEM_LIMITS, PLAN_CPU_QUOTAS, DEFAULT_MEM_LIMIT, DEFAULT_CPU_QUOTA
+    mem = PLAN_MEM_LIMITS.get(plan, DEFAULT_MEM_LIMIT)
+    cpu = PLAN_CPU_QUOTAS.get(plan, DEFAULT_CPU_QUOTA)
+    for slug in project_slugs:
+        try:
+            deployer.update_limits(slug, mem, cpu)
+        except Exception as exc:
+            print(f"[plan] не удалось обновить лимиты {slug}: {exc}")
 
 
 def _resume_paused_projects_best_effort(project_slugs: list[str]) -> None:
