@@ -60,3 +60,18 @@ def test_user_container_cannot_use_host_swap(monkeypatch):
     deployer.run_container("my-bot", "img:1", 8080, {}, mem_limit="256m")
     kw = fake.containers.run_kwargs
     assert kw["mem_limit"] == "256m" and kw["memswap_limit"] == "256m"
+
+
+def test_update_limits_applies_in_place(monkeypatch):
+    calls = {}
+    class C:
+        def update(self, **kw): calls.update(kw)
+    class Containers:
+        def get(self, name):
+            assert name == "verf-my-bot"
+            return C()
+    class Client:
+        containers = Containers()
+    monkeypatch.setattr(deployer, "_client", lambda: Client())
+    assert deployer.update_limits("my-bot", "1g", 100_000) is True
+    assert calls == {"mem_limit": "1g", "memswap_limit": "1g", "cpu_period": 100_000, "cpu_quota": 100_000}

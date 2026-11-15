@@ -212,6 +212,20 @@ def pause_container(slug: str) -> bool:
     return True
 
 
+def update_limits(slug: str, mem_limit: str, cpu_quota: int) -> bool:
+    """Applies new memory/CPU limits to an already-running container in place
+    (docker update) — used right after a plan upgrade so the user sees the
+    benefit immediately instead of waiting for their next deploy.
+    Returns False if the container doesn't exist."""
+    client = _client()
+    try:
+        c = client.containers.get(f"verf-{slug}")
+    except Exception:
+        return False
+    c.update(mem_limit=mem_limit, memswap_limit=mem_limit, cpu_period=100_000, cpu_quota=cpu_quota)
+    return True
+
+
 def resume_container(slug: str) -> bool:
     """Starts a previously paused container back up — the upgrade-path
     counterpart to pause_container(). Returns True if it was actually
