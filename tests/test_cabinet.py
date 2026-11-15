@@ -487,3 +487,31 @@ def test_cryptomus_webhook_ignores_non_paid_status(client, monkeypatch):
     user = db.query(User).filter_by(email="crypto-pending@example.com").first()
     assert user.plan == "free"  # still not upgraded — only paid/paid_over activate
     db.close()
+
+
+def test_billing_sync_activates_paid_subscription_without_webhook(client, monkeypatch):
+    from app import billing
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {
+        "id": "yk_sync_1", "confirmation": {"confirmation_url": "https://yookassa.ru/pay/yk_sync_1"},
+    })
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    token = _register(client, email="sync@example.com")
+    client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
+    assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "free"
+
+    r = client.post("/billing/sync", headers=_auth_headers(token))
+    assert r.status_code == 200 and r.json() == {"activated": 1}
+    assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "pro"
+    assert client.post("/billing/sync", headers=_auth_headers(token)).json() == {"activated": 0}
+
+
+def test_billing_sync_leaves_unpaid_pending(client, monkeypatch):
+    from app import billing
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id: {
+        "id": "yk_sync_2", "confirmation": {"confirmation_url": "https://x"},
+    })
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "pending"})
+    token = _register(client, email="sync2@example.com")
+    client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
+    assert client.post("/billing/sync", headers=_auth_headers(token)).json() == {"activated": 0}
+    assert client.get("/me", headers=_auth_headers(token)).json()["plan"] == "free"

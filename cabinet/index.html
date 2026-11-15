@@ -1213,6 +1213,8 @@ function renderTrialBanner(daysLeft){
 
 async function enterApp(){
   try{
+    // Safety net: if a payment went through but ЮKassa's notification was missed, activate it now.
+    try{ const sync = await api('/billing/sync', {method:'POST'}); if(sync && sync.activated){ showToast('Оплата подтверждена — тариф обновлён'); } }catch(e){ /* not critical */ }
     currentUser = await api('/me');
     document.getElementById('user-email').textContent = currentUser.email;
     document.getElementById('current-plan').textContent = currentUser.plan;
