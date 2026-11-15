@@ -148,6 +148,7 @@ def run_container(
             volumes={data_volume_name(slug): {"bind": DATA_MOUNT, "mode": "rw"}},
             labels=_labels(slug, internal_port, custom_domain),
             mem_limit=mem_limit,
+            memswap_limit=mem_limit,  # no swap for user containers: one greedy bot must not push the whole host into swap thrash
             cpu_period=100_000,
             cpu_quota=cpu_quota,
             restart_policy={"Name": "unless-stopped"},

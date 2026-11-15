@@ -51,3 +51,12 @@ def test_stop_and_remove_drops_the_data_volume(monkeypatch):
     monkeypatch.setattr(deployer, "_client", lambda: Client())
     deployer.stop_and_remove("my-bot")
     assert removed == [True]
+
+
+def test_user_container_cannot_use_host_swap(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(deployer, "_client", lambda: fake)
+    monkeypatch.setattr(deployer, "ensure_network", lambda: None)
+    deployer.run_container("my-bot", "img:1", 8080, {}, mem_limit="256m")
+    kw = fake.containers.run_kwargs
+    assert kw["mem_limit"] == "256m" and kw["memswap_limit"] == "256m"
