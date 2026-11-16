@@ -9,6 +9,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import requests
+
+from app import config
 from app.config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL, SMTP_FROM_NAME
 
 
@@ -16,9 +19,54 @@ class EmailError(Exception):
     pass
 
 
+class EmailNotConfigured(EmailError):
+    """Mail isn't set up at all — expected in dev, not worth an admin alert."""
+
+
+def _post_json(url: str, headers: dict, payload: dict) -> requests.Response:
+    try:
+        return requests.post(url, headers=headers, json=payload, timeout=15)
+    except requests.RequestException as exc:
+        raise EmailError(f"Не удалось связаться с почтовым сервисом: {exc}")
+
+
+def _send_brevo(to: str, subject: str, html_body: str) -> None:
+    r = _post_json(
+        "https://api.brevo.com/v3/smtp/email",
+        {"api-key": config.EMAIL_API_KEY, "accept": "application/json"},
+        {"sender": {"name": SMTP_FROM_NAME, "email": config.EMAIL_FROM},
+         "to": [{"email": to}], "subject": subject, "htmlContent": html_body},
+    )
+    if r.status_code >= 300:
+        raise EmailError(f"Brevo вернул {r.status_code}: {r.text[:200]}")
+
+
+def _send_unisender(to: str, subject: str, html_body: str) -> None:
+    r = _post_json(
+        "https://goapi.unisender.ru/ru/transactional/api/v1/email/send.json",
+        {"X-API-KEY": config.EMAIL_API_KEY},
+        {"message": {"recipients": [{"email": to}], "subject": subject,
+                     "from_email": config.EMAIL_FROM, "from_name": SMTP_FROM_NAME,
+                     "skip_unsubscribe": 1, "body": {"html": html_body}}},
+    )
+    if r.status_code >= 300:
+        raise EmailError(f"Unisender Go вернул {r.status_code}: {r.text[:200]}")
+
+
 def send_email(to: str, subject: str, html_body: str) -> None:
+    provider = config.EMAIL_PROVIDER or "smtp"
+    if provider in ("brevo", "unisender"):
+        if not config.EMAIL_API_KEY or not config.EMAIL_FROM:
+            raise EmailNotConfigured(
+                "Почтовый сервис не настроен — пропиши VERF_EMAIL_API_KEY и VERF_EMAIL_FROM в .env"
+            )
+        (_send_brevo if provider == "brevo" else _send_unisender)(to, subject, html_body)
+        return
+    if provider != "smtp":
+        raise EmailNotConfigured(f"Неизвестный VERF_EMAIL_PROVIDER: {provider}")
+
     if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
-        raise EmailError(
+        raise EmailNotConfigured(
             "SMTP не настроен — пропиши VERF_SMTP_USER и VERF_SMTP_PASSWORD в .env "
             "(для Yandex: Почта → Настройки → Пароли приложений)"
         )

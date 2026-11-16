@@ -35,12 +35,17 @@ async def lifespan(app: FastAPI):
     init_db()
     from app import config as _cfg
     from app.sync_payments import sync_loop
-    task = asyncio.create_task(sync_loop(_cfg.PAYMENT_SYNC_INTERVAL)) if _cfg.PAYMENT_SYNC_INTERVAL > 0 else None
+    from app.monitor import monitor_loop
+    tasks = []
+    if _cfg.PAYMENT_SYNC_INTERVAL > 0:
+        tasks.append(asyncio.create_task(sync_loop(_cfg.PAYMENT_SYNC_INTERVAL)))
+    if _cfg.MONITOR_INTERVAL > 0:
+        tasks.append(asyncio.create_task(monitor_loop(_cfg.MONITOR_INTERVAL)))
     try:
         yield
     finally:
-        if task:
-            task.cancel()
+        for t in tasks:
+            t.cancel()
 
 
 app = FastAPI(title="VERF core", version="0.1.0", lifespan=lifespan)
@@ -670,8 +675,13 @@ def _send_email_best_effort(send_fn, *args) -> None:
     """
     try:
         send_fn(*args)
+    except notifications.EmailNotConfigured as exc:
+        print(f"[email] отправка пропущена: {exc}")
     except notifications.EmailError as exc:
         print(f"[email] отправка не удалась: {exc}")
+        # A configured-but-failing mailer means customers silently get no
+        # receipts — tell the admin instead of letting it rot unnoticed.
+        _send_alert_best_effort(alerts.send_admin_alert, f"✉️ Не удалось отправить письмо клиенту: {exc}")
     except Exception as exc:
         print(f"[email] неожиданная ошибка при отправке: {exc}")
 
