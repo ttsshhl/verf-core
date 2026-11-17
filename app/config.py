@@ -127,3 +127,8 @@ MONITOR_INTERVAL = int(os.getenv("VERF_MONITOR_INTERVAL", "60"))        # second
 MONITOR_MEM_PCT = int(os.getenv("VERF_MONITOR_MEM_PCT", "90"))          # RAM in use, %
 MONITOR_SWAP_PCT = int(os.getenv("VERF_MONITOR_SWAP_PCT", "60"))
 MONITOR_DISK_PCT = int(os.getenv("VERF_MONITOR_DISK_PCT", "85"))
+
+# --- Subscription lifecycle ---
+SUBSCRIPTION_CHECK_INTERVAL = int(os.getenv("VERF_SUBSCRIPTION_CHECK_INTERVAL", "3600"))  # seconds, 0 = off
+SUBSCRIPTION_REMINDER_DAYS = int(os.getenv("VERF_SUBSCRIPTION_REMINDER_DAYS", "3"))
+PASSWORD_RESET_TTL_MINUTES = int(os.getenv("VERF_PASSWORD_RESET_TTL_MINUTES", "30"))

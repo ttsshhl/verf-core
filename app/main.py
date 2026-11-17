@@ -24,7 +24,7 @@ from app.models import Project, Deployment, DeployStatus, User, Subscription, Su
 from app.pipeline import run_deploy, run_deploy_from_upload
 from app.schemas import (
     ProjectCreate, ProjectOut, DeploymentOut,
-    UserCreate, UserLogin, UserOut, TokenOut, SubscribeRequest, SubscriptionOut, GithubRepoOut,
+    UserCreate, UserLogin, UserOut, TokenOut, PasswordForgot, PasswordReset, SubscribeRequest, SubscriptionOut, GithubRepoOut,
     DomainRequest, EnvUpdateRequest,
 )
 from app.webhook import verify_signature, extract_push_info
@@ -39,6 +39,9 @@ async def lifespan(app: FastAPI):
     tasks = []
     if _cfg.PAYMENT_SYNC_INTERVAL > 0:
         tasks.append(asyncio.create_task(sync_loop(_cfg.PAYMENT_SYNC_INTERVAL)))
+    if _cfg.SUBSCRIPTION_CHECK_INTERVAL > 0:
+        from app.subscriptions import expiry_loop
+        tasks.append(asyncio.create_task(expiry_loop(_cfg.SUBSCRIPTION_CHECK_INTERVAL)))
     if _cfg.MONITOR_INTERVAL > 0:
         tasks.append(asyncio.create_task(monitor_loop(_cfg.MONITOR_INTERVAL)))
     try:
@@ -137,6 +140,46 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(email=payload.email).first()
     if not user or not auth.verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Неверная почта или пароль")
+    return TokenOut(access_token=auth.create_access_token(user.id))
+
+
+_RESET_REQUESTS: dict[str, list[float]] = {}
+_RESET_MAX_PER_HOUR = 3
+
+
+@app.post("/auth/forgot")
+def forgot_password(payload: PasswordForgot, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Always answers the same way, whether or not the address is registered —
+    otherwise this endpoint would reveal who has an account."""
+    from app import config as _cfg
+    email = payload.email.strip()
+    now = time.time()
+    recent = [t for t in _RESET_REQUESTS.get(email.lower(), []) if now - t < 3600]
+    if len(recent) < _RESET_MAX_PER_HOUR:
+        _RESET_REQUESTS[email.lower()] = recent + [now]
+        user = db.query(User).filter_by(email=email).first()
+        if user:
+            token = auth.create_password_reset_token(user.id, user.password_hash, _cfg.PASSWORD_RESET_TTL_MINUTES)
+            link = f"https://cabinet.{DOMAIN_SUFFIX}/?reset={token}"
+            background_tasks.add_task(
+                _send_email_best_effort, notifications.send_password_reset_email,
+                user.email, link, _cfg.PASSWORD_RESET_TTL_MINUTES,
+            )
+    return {"ok": True}
+
+
+@app.post("/auth/reset", response_model=TokenOut)
+def reset_password(payload: PasswordReset, db: Session = Depends(get_db)):
+    bad_link = HTTPException(status_code=400, detail="Ссылка недействительна или устарела — запроси новую")
+    try:
+        user_id, fingerprint = auth.decode_password_reset_token(payload.token)
+    except auth.InvalidToken:
+        raise bad_link
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user or not auth.password_matches_fingerprint(user.password_hash, fingerprint):
+        raise bad_link  # unknown user, or the password was already changed with this link
+    user.password_hash = auth.hash_password(payload.password)
+    db.commit()
     return TokenOut(access_token=auth.create_access_token(user.id))
 
 
@@ -582,8 +625,7 @@ async def yookassa_webhook(request: Request, background_tasks: BackgroundTasks, 
     if payment.get("status") == "succeeded" and subscription.status != SubscriptionStatus.active:
         _activate_subscription(db, subscription, background_tasks)
     elif payment.get("status") == "canceled":
-        subscription.status = SubscriptionStatus.canceled
-        db.commit()
+        _cancel_subscription(db, subscription, background_tasks)
 
     return {"status": "ok"}
 
@@ -609,16 +651,40 @@ async def cryptomus_webhook(request: Request, background_tasks: BackgroundTasks,
     if status in ("paid", "paid_over") and subscription.status != SubscriptionStatus.active:
         _activate_subscription(db, subscription, background_tasks)
     elif status in ("cancel", "fail"):
-        subscription.status = SubscriptionStatus.canceled
-        db.commit()
+        _cancel_subscription(db, subscription, background_tasks)
 
     return {"status": "ok"}
 
 
+def _cancel_subscription(db: Session, subscription: Subscription, background_tasks: BackgroundTasks) -> None:
+    """A payment that failed or was cancelled. Emails the customer once —
+    only on the pending -> canceled transition, so a repeated webhook stays quiet."""
+    was_pending = subscription.status == SubscriptionStatus.pending
+    subscription.status = SubscriptionStatus.canceled
+    db.commit()
+    if was_pending:
+        background_tasks.add_task(
+            _send_email_best_effort, notifications.send_payment_canceled_email,
+            subscription.user.email, subscription.plan,
+        )
+
+
 def _activate_subscription(db: Session, subscription: Subscription, background_tasks: BackgroundTasks) -> None:
+    from app.subscriptions import aware
+    now = datetime.now(timezone.utc)
+    # Renewing early adds a month on top of the days that are left (same plan),
+    # instead of throwing the remaining days away.
+    base = now
+    for other in db.query(Subscription).filter(
+        Subscription.user_id == subscription.user_id, Subscription.id != subscription.id,
+        Subscription.plan == subscription.plan, Subscription.status == SubscriptionStatus.active,
+    ).all():
+        if other.expires_at and aware(other.expires_at) > base:
+            base = aware(other.expires_at)
     subscription.status = SubscriptionStatus.active
-    subscription.activated_at = datetime.now(timezone.utc)
-    subscription.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    subscription.activated_at = now
+    subscription.expires_at = base + timedelta(days=30)
+    subscription.reminded_at = None
     subscription.user.plan = subscription.plan
     db.commit()
     background_tasks.add_task(
@@ -651,6 +717,17 @@ def _apply_plan_limits_best_effort(project_slugs: list[str], plan: str) -> None:
             deployer.update_limits(slug, mem, cpu)
         except Exception as exc:
             print(f"[plan] не удалось обновить лимиты {slug}: {exc}")
+
+
+def _pause_projects_best_effort(project_slugs: list[str]) -> None:
+    """Stops (doesn't delete) the given projects' containers — used when a plan
+    lapses and the user is over the Free quota. Reversible: paying resumes them."""
+    from app import deployer
+    for slug in project_slugs:
+        try:
+            deployer.pause_container(slug)
+        except Exception as exc:
+            print(f"[plan] не удалось остановить {slug}: {exc}")
 
 
 def _resume_paused_projects_best_effort(project_slugs: list[str]) -> None:

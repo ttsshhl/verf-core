@@ -54,6 +54,16 @@ class EnvUpdateRequest(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
 
 
+def check_password_strength(v: str) -> str:
+    if len(v) < 6:
+        raise ValueError("Пароль должен быть не короче 6 символов")
+    if not re.search(r"[A-ZА-ЯЁ]", v):
+        raise ValueError("Пароль должен содержать хотя бы одну заглавную букву")
+    if not re.search(r"[^\w\s]", v, re.UNICODE):
+        raise ValueError("Пароль должен содержать хотя бы один символ (например !@#$%)")
+    return v
+
+
 class UserCreate(BaseModel):
     email: str
     password: str = Field(..., min_length=6)
@@ -61,13 +71,21 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def _validate_password_strength(cls, v: str) -> str:
-        if len(v) < 6:
-            raise ValueError("Пароль должен быть не короче 6 символов")
-        if not re.search(r"[A-ZА-ЯЁ]", v):
-            raise ValueError("Пароль должен содержать хотя бы одну заглавную букву")
-        if not re.search(r"[^\w\s]", v, re.UNICODE):
-            raise ValueError("Пароль должен содержать хотя бы один символ (например !@#$%)")
-        return v
+        return check_password_strength(v)
+
+
+class PasswordForgot(BaseModel):
+    email: str
+
+
+class PasswordReset(BaseModel):
+    token: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        return check_password_strength(v)
 
 
 class UserLogin(BaseModel):
