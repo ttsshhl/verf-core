@@ -270,6 +270,23 @@
   .pay-overlay{ background:rgba(5,10,16,.75); }
   .pay-box{ border-radius:20px; box-shadow:none; }
 
+  
+  /* custom repo dropdown */
+  .rs{ position:relative; }
+  .rs-btn{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; text-align:left; cursor:pointer;
+    background:var(--surface-2); color:#fff; border:1px solid #363F4B; border-radius:12px; padding:13px 16px; font-size:15px; }
+  .rs-btn:hover{ border-color:#4A5563; }
+  .rs-pop{ display:none; position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:50; background:#111A26; border:1px solid #363F4B; border-radius:12px; padding:8px; box-shadow:0 18px 40px rgba(0,0,0,.55); }
+  .rs-pop.show{ display:block; }
+  .rs-pop input{ margin-bottom:6px; }
+  .rs-list{ max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
+  .rs-item{ padding:9px 12px; border-radius:8px; cursor:pointer; font-size:14.5px; color:#E6EEF4; }
+  .rs-item:hover{ background:#1B2A3A; }
+  .rs-item.sel{ background:#425C74; color:#fff; }
+  .rs-empty{ padding:10px 12px; color:#8D98A5; font-size:14px; }
+  /* GitHub connect button: gray, GitHub-style */
+  #github-connect-btn{ background:#21262D !important; color:#F0F6FC !important; border:1px solid #30363D !important; border-radius:10px !important; font-weight:600; }
+  #github-connect-btn:hover{ background:#30363D !important; border-color:#8B949E !important; filter:none; }
   /* sizing to match reference */
   body{ font-size:15.5px; }
   .header-inner, .wrap{ max-width:1072px; }
@@ -390,7 +407,7 @@
         <div class="section-title" style="margin-bottom:14px; font-size:16px;">Новый проект</div>
 
         <div id="github-connect-block" style="text-align:center; padding:22px; margin-bottom:20px; border:1px dashed var(--line); border-radius:6px; display:none;">
-          <button type="button" class="btn btn-primary" id="github-connect-btn" style="max-width:280px; margin:0 auto; padding:14px 28px; font-size:15px;">Подключить GitHub</button>
+          <button type="button" class="btn btn-primary" id="github-connect-btn" style="max-width:300px; margin:0 auto; padding:14px 28px; font-size:15px; gap:10px;"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Подключить GitHub</button>
         </div>
         <div id="github-connected-block" style="display:none; text-align:center; margin-bottom:16px; font-size:12.5px; color:var(--ink-soft);">
           GitHub: <b id="github-username-display" style="color:var(--ink);"></b> &nbsp;·&nbsp; <a href="#" id="github-disconnect-btn" style="color:var(--ink-soft); text-decoration:underline;">отключить</a>
@@ -424,7 +441,11 @@
           <div class="form-row full" id="source-github-wrap">
             <div class="field-sm">
               <label for="np-repo-select">Репозиторий</label>
-              <select id="np-repo-select"></select>
+              <select id="np-repo-select" style="display:none !important"></select>
+              <div class="rs" id="np-repo-dd">
+                <button type="button" class="rs-btn" id="np-repo-btn"><span id="np-repo-label">Выбери репозиторий</span><svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1 1.5l5 5 5-5" stroke="#8D98A5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div class="rs-pop" id="np-repo-pop"><input type="text" id="np-repo-search" placeholder="Поиск…" autocomplete="off"><div class="rs-list" id="np-repo-list"></div></div>
+              </div>
             </div>
           </div>
           <div class="form-row full" id="source-url-wrap" style="display:none;">
@@ -1193,6 +1214,7 @@ async function refreshGithubStatus(){
       select.innerHTML = repos.map(r =>
         `<option value="${r.full_name}" data-branch="${r.default_branch}">${r.private ? '🔒 ' : ''}${r.full_name}</option>`
       ).join('');
+      buildRepoDropdown();
       if(repos.length){
         const opt = select.options[0];
         document.getElementById('np-branch').value = opt.dataset.branch;
@@ -1208,6 +1230,46 @@ async function refreshGithubStatus(){
     if(currentSourceMode === 'github') setSourceMode('url');
   }
 }
+
+
+/* custom repo dropdown: always opens downward, searchable */
+function buildRepoDropdown(){
+  const sel = document.getElementById('np-repo-select');
+  const list = document.getElementById('np-repo-list');
+  const label = document.getElementById('np-repo-label');
+  const q = document.getElementById('np-repo-search').value.trim().toLowerCase();
+  label.textContent = sel.value || 'Выбери репозиторий';
+  list.innerHTML = '';
+  Array.from(sel.options).filter(o => !q || o.value.toLowerCase().includes(q)).forEach(o => {
+    const d = document.createElement('div');
+    d.className = 'rs-item' + (o.value === sel.value ? ' sel' : '');
+    d.textContent = o.textContent;
+    d.addEventListener('click', () => {
+      sel.value = o.value;
+      sel.dispatchEvent(new Event('change'));
+      closeRepoDropdown();
+      buildRepoDropdown();
+    });
+    list.appendChild(d);
+  });
+  if(!list.children.length){ list.innerHTML = '<div class="rs-empty">Ничего не найдено</div>'; }
+}
+function closeRepoDropdown(){ document.getElementById('np-repo-pop').classList.remove('show'); }
+document.getElementById('np-repo-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const pop = document.getElementById('np-repo-pop');
+  const open = !pop.classList.contains('show');
+  pop.classList.toggle('show', open);
+  if(open){
+    const inp = document.getElementById('np-repo-search'); inp.value = ''; buildRepoDropdown();
+    inp.focus({preventScroll:true});
+    const it = pop.querySelector('.rs-item.sel'); if(it) it.scrollIntoView({block:'nearest'});
+  }
+});
+document.getElementById('np-repo-search').addEventListener('input', buildRepoDropdown);
+document.getElementById('np-repo-pop').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', closeRepoDropdown);
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeRepoDropdown(); });
 
 document.getElementById('np-repo-select').addEventListener('change', (e) => {
   const opt = e.target.options[e.target.selectedIndex];
