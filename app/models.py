@@ -79,6 +79,7 @@ class Subscription(Base):
     created_at = Column(DateTime, default=utcnow)
     activated_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)
+    reminded_at = Column(DateTime, nullable=True)  # when the "expires soon" email went out (once per subscription)
 
     user = relationship("User", back_populates="subscriptions")
 

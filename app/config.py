@@ -92,6 +92,15 @@ SMTP_PASSWORD = os.getenv("VERF_SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("VERF_SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("VERF_SMTP_FROM_NAME", "VERF")
 
+# Outgoing mail transport. Many VPS hosts (incl. Aeza) block outbound SMTP ports,
+# so besides plain SMTP we can send through an HTTPS API (works from any host):
+#   VERF_EMAIL_PROVIDER = smtp (default) | brevo | unisender
+#   VERF_EMAIL_API_KEY  = the provider's API key
+#   VERF_EMAIL_FROM     = a sender address verified at the provider
+EMAIL_PROVIDER = os.getenv("VERF_EMAIL_PROVIDER", "smtp").strip().lower()
+EMAIL_API_KEY = os.getenv("VERF_EMAIL_API_KEY", "")
+EMAIL_FROM = os.getenv("VERF_EMAIL_FROM", "") or SMTP_FROM_EMAIL
+
 # --- Telegram Bot API connectivity fix ---
 # Some of Telegram's IP ranges are unreliably routed from this hosting
 # network (confirmed by hand: some of api.telegram.org's several IPs work,
@@ -111,3 +120,15 @@ TELEGRAM_API_PINNED_IP = os.getenv("VERF_TELEGRAM_API_PINNED_IP", "149.154.167.2
 # graceful-degradation pattern as SMTP/GitHub OAuth elsewhere in this file.
 TELEGRAM_ALERTS_BOT_TOKEN = os.getenv("VERF_TELEGRAM_ALERTS_BOT_TOKEN", "")
 TELEGRAM_ALERTS_CHAT_ID = os.getenv("VERF_TELEGRAM_ALERTS_CHAT_ID", "")
+
+
+# --- Server health monitor (Telegram alerts, uses the alerts bot above) ---
+MONITOR_INTERVAL = int(os.getenv("VERF_MONITOR_INTERVAL", "60"))        # seconds, 0 = off
+MONITOR_MEM_PCT = int(os.getenv("VERF_MONITOR_MEM_PCT", "90"))          # RAM in use, %
+MONITOR_SWAP_PCT = int(os.getenv("VERF_MONITOR_SWAP_PCT", "60"))
+MONITOR_DISK_PCT = int(os.getenv("VERF_MONITOR_DISK_PCT", "85"))
+
+# --- Subscription lifecycle ---
+SUBSCRIPTION_CHECK_INTERVAL = int(os.getenv("VERF_SUBSCRIPTION_CHECK_INTERVAL", "3600"))  # seconds, 0 = off
+SUBSCRIPTION_REMINDER_DAYS = int(os.getenv("VERF_SUBSCRIPTION_REMINDER_DAYS", "3"))
+PASSWORD_RESET_TTL_MINUTES = int(os.getenv("VERF_PASSWORD_RESET_TTL_MINUTES", "30"))

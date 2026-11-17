@@ -18,7 +18,7 @@ from app.models import Subscription, SubscriptionStatus
 
 def sync_pending(db: Session, background_tasks: BackgroundTasks, user_id: str | None = None) -> int:
     """Returns how many subscriptions were activated."""
-    from app.main import _activate_subscription
+    from app.main import _activate_subscription, _cancel_subscription
 
     q = db.query(Subscription).filter_by(status=SubscriptionStatus.pending, provider="yookassa")
     if user_id:
@@ -35,8 +35,7 @@ def sync_pending(db: Session, background_tasks: BackgroundTasks, user_id: str | 
             _activate_subscription(db, sub, background_tasks)
             activated += 1
         elif payment.get("status") == "canceled":
-            sub.status = SubscriptionStatus.canceled
-            db.commit()
+            _cancel_subscription(db, sub, background_tasks)
     return activated
 
 

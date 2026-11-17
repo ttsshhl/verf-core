@@ -298,6 +298,7 @@
       <button class="auth-tab active" data-mode="login">Вход</button>
       <button class="auth-tab" data-mode="register">Регистрация</button>
     </div>
+    <div id="auth-info" style="display:none; margin:6px 0 18px; font-size:13px; line-height:1.55; color:var(--ink-soft);"></div>
     <form id="auth-form">
       <div class="field">
         <label for="auth-email">Почта</label>
@@ -332,6 +333,10 @@
       </button>
       <div class="error-msg" id="auth-error"></div>
     </form>
+    <div style="margin-top:14px; text-align:center; font-size:13px;">
+      <a href="#" id="forgot-link" style="color:var(--ink-soft); text-decoration:underline;">Забыли пароль?</a>
+      <a href="#" id="back-login-link" style="display:none; color:var(--ink-soft); text-decoration:underline;">← Вернуться ко входу</a>
+    </div>
     <div id="plan-hint" style="display:none; margin-top:16px; padding:10px 12px; background:var(--accent-dim); border-radius:4px; font-size:12.5px; color:var(--ink);"></div>
   </div>
 </div>
@@ -564,20 +569,42 @@ function validatePasswordStrength(pw){
   return null;
 }
 
-document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    authMode = tab.dataset.mode;
-    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
-    document.getElementById('auth-submit-text').textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
-    document.getElementById('auth-error').classList.remove('show');
+const resetToken = new URLSearchParams(window.location.search).get('reset');
+const SUBMIT_LABEL = {login:'Войти', register:'Зарегистрироваться', forgot:'Отправить ссылку', reset:'Сохранить пароль'};
+const BUSY_LABEL = {login:'Входим…', register:'Регистрируем…', forgot:'Отправляем…', reset:'Сохраняем…'};
 
-    const isRegister = authMode === 'register';
-    document.getElementById('password-requirements').style.display = isRegister ? 'block' : 'none';
-    document.getElementById('auth-password-confirm-field').style.display = isRegister ? 'block' : 'none';
-    document.getElementById('auth-password').setAttribute('autocomplete', isRegister ? 'new-password' : 'current-password');
-    if(!isRegister) document.getElementById('auth-password-confirm').value = '';
-  });
+function setAuthMode(mode){
+  authMode = mode;
+  const isReg = mode === 'register', isForgot = mode === 'forgot', isReset = mode === 'reset';
+  const emailField = document.getElementById('auth-email').closest('.field');
+  const pwField = document.getElementById('auth-password').closest('.field');
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  document.querySelector('.auth-tabs').style.display = (mode === 'login' || isReg) ? '' : 'none';
+  emailField.style.display = isReset ? 'none' : '';
+  document.getElementById('auth-email').required = !isReset;
+  pwField.style.display = isForgot ? 'none' : '';
+  document.getElementById('auth-password').required = !isForgot;
+  document.getElementById('auth-password-confirm-field').style.display = (isReg || isReset) ? 'block' : 'none';
+  document.getElementById('password-requirements').style.display = (isReg || isReset) ? 'block' : 'none';
+  document.getElementById('auth-password').setAttribute('autocomplete', (isReg || isReset) ? 'new-password' : 'current-password');
+  document.getElementById('auth-password').value = '';
+  document.getElementById('auth-password-confirm').value = '';
+  document.getElementById('auth-submit-text').textContent = SUBMIT_LABEL[mode];
+  document.getElementById('auth-submit').disabled = false;
+  document.getElementById('auth-error').classList.remove('show');
+  const info = document.getElementById('auth-info');
+  info.style.display = (isForgot || isReset) ? 'block' : 'none';
+  info.style.color = 'var(--ink-soft)';
+  info.textContent = isForgot ? 'Укажите почту — пришлём ссылку для сброса пароля.' : isReset ? 'Придумайте новый пароль для входа.' : '';
+  document.getElementById('forgot-link').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('back-login-link').style.display = isForgot ? '' : 'none';
+}
+
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => setAuthMode(tab.dataset.mode));
 });
+document.getElementById('forgot-link').addEventListener('click', (e) => { e.preventDefault(); setAuthMode('forgot'); });
+document.getElementById('back-login-link').addEventListener('click', (e) => { e.preventDefault(); setAuthMode('login'); });
 
 document.getElementById('auth-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -589,7 +616,7 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
   const btnSpinner = document.getElementById('auth-submit-spinner');
   errEl.classList.remove('show');
 
-  if(authMode === 'register'){
+  if(authMode === 'register' || authMode === 'reset'){
     const confirm = document.getElementById('auth-password-confirm').value;
     const strengthError = validatePasswordStrength(password);
     if(strengthError){
@@ -605,9 +632,26 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
   }
 
   btn.disabled = true;
-  btnText.textContent = authMode === 'login' ? 'Входим…' : 'Регистрируем…';
+  btnText.textContent = BUSY_LABEL[authMode];
   btnSpinner.style.display = 'inline-block';
+  let keepDisabled = false;
   try{
+    if(authMode === 'forgot'){
+      await api('/auth/forgot', {method: 'POST', body: JSON.stringify({email})});
+      const info = document.getElementById('auth-info');
+      info.style.color = '#5FD48F';
+      info.textContent = 'Если такой адрес зарегистрирован, мы отправили письмо со ссылкой. Проверьте и папку «Спам». Ссылка действует 30 минут.';
+      keepDisabled = true;
+      return;
+    }
+    if(authMode === 'reset'){
+      const data = await api('/auth/reset', {method: 'POST', body: JSON.stringify({token: resetToken, password})});
+      token = data.access_token;
+      localStorage.setItem('verf_token', token);
+      window.history.replaceState({}, '', window.location.pathname);
+      await enterApp();
+      return;
+    }
     const path = authMode === 'login' ? '/auth/login' : '/auth/register';
     const data = await api(path, {method: 'POST', body: JSON.stringify({email, password})});
     token = data.access_token;
@@ -617,9 +661,9 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
     errEl.textContent = err.message;
     errEl.classList.add('show');
   }finally{
-    btn.disabled = false;
+    btn.disabled = keepDisabled;
     btnSpinner.style.display = 'none';
-    btnText.textContent = authMode === 'login' ? 'Войти' : 'Зарегистрироваться';
+    btnText.textContent = SUBMIT_LABEL[authMode];
   }
 });
 
@@ -1387,7 +1431,11 @@ document.getElementById('toggle-password-confirm').addEventListener('click', () 
   document.getElementById('eye-closed-confirm').style.display = isHidden ? 'block' : 'none';
 });
 
-if(token){
+if(resetToken){
+  hideBootLoader();
+  document.getElementById('auth-screen').style.display = 'flex';
+  setAuthMode('reset');
+}else if(token){
   enterApp();
 }else{
   hideBootLoader();

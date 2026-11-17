@@ -1,6 +1,7 @@
 """Auth primitives: password hashing (raw bcrypt — passlib has a known
 incompatibility with recent bcrypt releases) and JWT issue/verify.
 """
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -77,3 +78,39 @@ def decode_github_connect_state(state: str) -> str:
     if payload.get("typ") != "github_connect":
         raise InvalidToken("Неверный тип токена")
     return payload["sub"]
+
+
+def _pwd_fingerprint(password_hash: str) -> str:
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def create_password_reset_token(user_id: str, password_hash: str, ttl_minutes: int) -> str:
+    """Single-use by construction: the token embeds a fingerprint of the current
+    password hash, so the moment the password changes the token stops validating."""
+    if not JWT_SECRET:
+        raise RuntimeError("VERF_JWT_SECRET не задан")
+    payload = {
+        "sub": user_id,
+        "typ": "password_reset",
+        "pwd": _pwd_fingerprint(password_hash),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> tuple[str, str]:
+    """Returns (user_id, password fingerprint) or raises InvalidToken."""
+    if not JWT_SECRET:
+        raise InvalidToken("JWT не настроен на сервере")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError as exc:
+        raise InvalidToken(str(exc))
+    if payload.get("typ") != "password_reset":
+        raise InvalidToken("Неверный тип токена")
+    return payload["sub"], payload.get("pwd", "")
+
+
+def password_matches_fingerprint(password_hash: str, fingerprint: str) -> bool:
+    return _pwd_fingerprint(password_hash) == fingerprint
