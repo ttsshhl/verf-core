@@ -90,15 +90,26 @@ def _run_pipeline(db: Session, project: Project, deployment: Deployment, get_sou
         deployment.port = profile.internal_port
         log(f"→ Контейнер запущен: {container_id[:12]} (тариф «{owner_plan}»: {mem_limit} RAM)")
 
-        if project.kind == ProjectKind.bot:
+        from app import config as _cfg, diagnose
+        stable, exit_code, tail = deployer.wait_for_stable(project.slug, _cfg.STARTUP_CHECK_SECONDS)
+        if not stable:
+            log(f"✗ Контейнер упал сразу после запуска (код выхода {exit_code}). Последние строки лога:")
+            for line in tail.splitlines()[-15:]:
+                log(f"    {line}")
+            hint = diagnose.hint_for(tail)
+            if hint:
+                log(f"💡 {hint}")
+            log("→ Исправьте причину и задеплойте проект заново. Контейнер остановлен, чтобы не перезапускаться по кругу.")
+            deployer.stop_crashing(project.slug)
+            set_status(DeployStatus.failed)
+        elif project.kind == ProjectKind.bot:
             # Long-polling bots (the vast majority of Telegram bots) make
             # outbound requests to Telegram and never open any listening
             # socket at all — there's nothing for a port check to find,
             # even for a perfectly working bot. Checking anyway would
-            # false-fail every such bot. Site/backend projects still get
-            # the real check below, since they DO need to answer on a
-            # port for Traefik to route to them.
-            log("→ Тип проекта «Бот» — пропускаю проверку порта (long-polling боты обычно не открывают сетевой порт)")
+            # false-fail every such bot; "stayed up for a few seconds" is
+            # the strongest signal available for them.
+            log("→ Бот не упал после запуска ✓ (порт для long-polling ботов не проверяется)")
             set_status(DeployStatus.running)
         else:
             log(f"→ Проверяю, что приложение отвечает на порту {profile.internal_port}…")

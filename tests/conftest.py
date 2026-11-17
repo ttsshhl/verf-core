@@ -14,3 +14,4 @@ def default_healthy_container(monkeypatch):
     """
     from app import deployer
     monkeypatch.setattr(deployer, "wait_for_container_port", lambda slug, port, timeout=15.0: True)
+    monkeypatch.setattr(deployer, "wait_for_stable", lambda slug, seconds=15.0: (True, None, ""))

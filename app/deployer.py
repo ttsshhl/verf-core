@@ -192,6 +192,48 @@ def wait_for_container_port(slug: str, port: int, timeout: float = 15.0) -> bool
     return False
 
 
+def container_log_tail(slug: str, lines: int = 20) -> str:
+    """Last log lines of a project's container ('' if it can't be read)."""
+    try:
+        c = _client().containers.get(f"verf-{slug}")
+        return c.logs(tail=lines).decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+
+
+def wait_for_stable(slug: str, seconds: float = 15.0) -> tuple[bool, int | None, str]:
+    """Watches a freshly started container for a few seconds. A project that
+    dies on startup (missing token, bad import…) would otherwise be reported
+    as "running" while Docker restarts it forever.
+
+    Returns (stable, exit_code, last_log_lines)."""
+    try:
+        c = _client().containers.get(f"verf-{slug}")
+    except Exception:
+        return True, None, ""   # can't inspect — don't fail the deploy on our own uncertainty
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        c.reload()
+        state = c.attrs.get("State", {})
+        if c.status in ("exited", "dead", "restarting") or c.attrs.get("RestartCount", 0) > 0:
+            return False, state.get("ExitCode"), container_log_tail(slug)
+        time.sleep(1)
+    return True, None, ""
+
+
+def stop_crashing(slug: str) -> bool:
+    """Stops a container even when it is mid restart-loop (pause_container only
+    handles "running" ones). Reversible: redeploy or `docker start`."""
+    try:
+        c = _client().containers.get(f"verf-{slug}")
+    except Exception:
+        return False
+    if c.status in ("running", "restarting"):
+        c.stop(timeout=10)
+        return True
+    return False
+
+
 def pause_container(slug: str) -> bool:
     """Stops (without removing) a project's container — used when a
     free-trial account expires. Unlike stop_and_remove (project deletion),

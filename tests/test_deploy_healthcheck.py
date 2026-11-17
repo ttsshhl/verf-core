@@ -167,7 +167,7 @@ def test_bot_kind_skips_port_check_and_still_succeeds(client, monkeypatch, fake_
 
     deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
     assert deploys[0]["status"] == "running"
-    assert "пропускаю проверку порта" in deploys[0]["log"]
+    assert "не проверяется" in deploys[0]["log"]
 
 
 def test_site_kind_still_gets_real_port_check(client, monkeypatch, fake_upstream):
@@ -193,3 +193,42 @@ def test_backend_kind_still_gets_real_port_check(client, monkeypatch, fake_upstr
 
     deploys = client.get(f"/me/projects/{proj['slug']}/deployments", headers=_auth_headers(token)).json()
     assert deploys[0]["status"] == "failed"
+
+
+# ---------- startup check: container that dies right after start ----------
+
+def _deploy_kind(client, monkeypatch, fake_upstream, slug, token, kind):
+    from app import deployer
+    monkeypatch.setattr(deployer, "build_image", lambda slug, dep_id: f"verf/{slug}:{dep_id}")
+    monkeypatch.setattr(deployer, "run_container", lambda slug, image, port, env, **kw: "fake-container-id")
+    proj = client.post(
+        "/me/projects", headers=_auth_headers(token),
+        json={"slug": slug, "repo_url": str(fake_upstream), "branch": "main", "kind": kind},
+    ).json()
+    body = json.dumps({"ref": "refs/heads/main", "after": "x"}).encode()
+    client.post(f"/webhook/github/{slug}", content=body, headers={
+        "X-Hub-Signature-256": _sign(proj["webhook_secret"], body), "X-GitHub-Event": "push"})
+    return client.get(f"/me/projects/{slug}/deployments", headers=_auth_headers(token)).json()[0]
+
+
+@pytest.mark.parametrize("kind", ["bot", "site"])
+def test_project_that_crashes_on_startup_fails_with_log_hint_and_is_stopped(client, monkeypatch, fake_upstream, kind):
+    from app import deployer
+    stopped = []
+    monkeypatch.setattr(deployer, "wait_for_stable",
+                        lambda slug, seconds=15.0: (False, 1, "Токен не задан. Установите переменную окружения BOT_TOKEN"))
+    monkeypatch.setattr(deployer, "stop_crashing", lambda slug: stopped.append(slug) or True)
+    token = _register(client, f"crash-{kind}@example.com")
+    d = _deploy_kind(client, monkeypatch, fake_upstream, f"crash-{kind}", token, kind)
+    assert d["status"] == "failed"
+    assert "код выхода 1" in d["log"] and "Токен не задан" in d["log"]
+    assert "Переменные" in d["log"] or "переменные" in d["log"]
+    assert stopped == [f"crash-{kind}"]
+
+
+def test_bot_that_stays_up_is_running(client, monkeypatch, fake_upstream):
+    from app import deployer
+    monkeypatch.setattr(deployer, "wait_for_stable", lambda slug, seconds=15.0: (True, None, ""))
+    token = _register(client, "stays-up@example.com")
+    d = _deploy_kind(client, monkeypatch, fake_upstream, "stays-up", token, "bot")
+    assert d["status"] == "running" and "не упал" in d["log"]

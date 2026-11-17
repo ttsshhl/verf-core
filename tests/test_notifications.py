@@ -189,3 +189,65 @@ def test_payment_activation_succeeds_even_if_email_sending_fails(client, monkeyp
     user = db.query(User).filter_by(email="resilient-payer@example.com").first()
     assert user.plan == "business"  # subscription still activated despite email failure
     db.close()
+
+
+# ---------- HTTPS-API mail providers (used when the host blocks SMTP) ----------
+
+class _Resp:
+    def __init__(self, code=200, text="ok"):
+        self.status_code, self.text = code, text
+
+
+def _provider(monkeypatch, name):
+    from app import config
+    monkeypatch.setattr(config, "EMAIL_PROVIDER", name)
+    monkeypatch.setattr(config, "EMAIL_API_KEY", "key123")
+    monkeypatch.setattr(config, "EMAIL_FROM", "noreply@verfdeploy.ru")
+
+
+def test_brevo_sends_expected_request(monkeypatch):
+    import requests
+    from app import notifications
+    _provider(monkeypatch, "brevo")
+    seen = {}
+    monkeypatch.setattr(requests, "post", lambda url, headers=None, json=None, timeout=None: seen.update(url=url, h=headers, j=json) or _Resp(201))
+    notifications.send_email("a@b.ru", "Тема", "<b>hi</b>")
+    assert seen["url"] == "https://api.brevo.com/v3/smtp/email" and seen["h"]["api-key"] == "key123"
+    assert seen["j"]["to"] == [{"email": "a@b.ru"}] and seen["j"]["sender"]["email"] == "noreply@verfdeploy.ru"
+
+
+def test_unisender_sends_expected_request(monkeypatch):
+    import requests
+    from app import notifications
+    _provider(monkeypatch, "unisender")
+    seen = {}
+    monkeypatch.setattr(requests, "post", lambda url, headers=None, json=None, timeout=None: seen.update(url=url, h=headers, j=json) or _Resp(200))
+    notifications.send_email("a@b.ru", "Тема", "<b>hi</b>")
+    assert "unisender" in seen["url"] and seen["h"]["X-API-KEY"] == "key123"
+    assert seen["j"]["message"]["recipients"] == [{"email": "a@b.ru"}] and seen["j"]["message"]["body"]["html"] == "<b>hi</b>"
+
+
+def test_api_provider_error_and_missing_key(monkeypatch):
+    import requests
+    from app import notifications, config
+    _provider(monkeypatch, "brevo")
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _Resp(401, "bad key"))
+    with pytest.raises(notifications.EmailError) as e:
+        notifications.send_email("a@b.ru", "s", "b")
+    assert not isinstance(e.value, notifications.EmailNotConfigured)
+    monkeypatch.setattr(config, "EMAIL_API_KEY", "")
+    with pytest.raises(notifications.EmailNotConfigured):
+        notifications.send_email("a@b.ru", "s", "b")
+
+
+def test_failing_configured_mailer_alerts_admin(client, monkeypatch):
+    from app import billing, notifications, alerts
+    sent = []
+    monkeypatch.setattr(alerts, "send_admin_alert", lambda text: sent.append(text))
+    monkeypatch.setattr(billing, "create_payment", lambda plan, sub_id, payment_method_type=None: {"id": "yk_mail_alert", "confirmation": {"confirmation_url": "https://x"}})
+    monkeypatch.setattr(billing, "fetch_payment", lambda pid: {"id": pid, "status": "succeeded"})
+    monkeypatch.setattr(notifications, "send_payment_confirmation_email", lambda *a, **k: (_ for _ in ()).throw(notifications.EmailError("Brevo вернул 401")))
+    token = client.post("/auth/register", json={"email": "mailfail@example.com", "password": "Correct-Horse1!"}).json()["access_token"]
+    client.post("/billing/subscribe", headers=_auth_headers(token), json={"plan": "pro"})
+    client.post("/webhook/yookassa", json={"object": {"id": "yk_mail_alert", "status": "succeeded"}})
+    assert any("Не удалось отправить письмо" in t for t in sent)
