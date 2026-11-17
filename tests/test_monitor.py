@@ -109,3 +109,19 @@ def test_docker_unreachable_is_reported():
     run(st, s, 0)
     out = run(st, s, 60)
     assert out and "Docker" in out[0]
+
+
+def test_digest_groups_many_alerts_into_one_message():
+    assert monitor.digest(["a"]) == "a"
+    out = monitor.digest([f"проблема {i}" for i in range(7)])
+    assert out.startswith("Проблем: 7") and out.count("проблема") == 7
+    huge = monitor.digest(["x" * 900] * 10)
+    assert len(huge) < 4096 and huge.endswith("python -m app.monitor`")
+
+
+def test_loop_alert_for_restarting_status_shows_exit_code_not_fake_count():
+    st = monitor.MonitorState()
+    s = snap(containers=[cont("crashy", "restarting", 1)])
+    run(st, s, 0)
+    out = run(st, s, 60)
+    assert "код выхода 1" in out[0] and "1 раз" not in out[0]

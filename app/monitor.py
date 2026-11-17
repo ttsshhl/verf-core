@@ -150,8 +150,9 @@ def _problems(snap: dict, state: MonitorState, now: float) -> dict[str, str]:
             bad[f"oom:{slug}"] = (f"🔴 {slug} ({owner}) убит за превышение памяти — лимит {c['mem_limit_mb']} МБ. "
                                   f"Клиенту нужно больше памяти или оптимизация бота")
         if c["status"] == "restarting" or burst >= RESTART_BURST:
+            how = f"{burst} раз за {RESTART_WINDOW // 60} мин" if burst >= RESTART_BURST else f"код выхода {c['exit_code']}"
             bad[f"loop:{slug}"] = (f"🔴 {slug} ({owner}) падает и перезапускается по кругу "
-                                   f"({burst} раз за {RESTART_WINDOW // 60} мин). Логи: `docker logs --tail 50 verf-{slug}`")
+                                   f"({how}). Логи: `docker logs --tail 50 verf-{slug}`")
         elif c["status"] in ("exited", "dead"):
             bad[f"down:{slug}"] = (f"🔴 {slug} ({owner}) остановлен, код выхода {c['exit_code']}. "
                                    f"Логи: `docker logs --tail 50 verf-{slug}`")
@@ -197,6 +198,14 @@ def evaluate(snap: dict, state: MonitorState, now: float | None = None) -> list[
 
 # ---------- running ----------
 
+def digest(texts: list[str], limit: int = 3500) -> str:
+    """Joins several alerts into one Telegram message (4096-char cap)."""
+    if len(texts) == 1:
+        return texts[0]
+    out = f"Проблем: {len(texts)}\n\n" + "\n\n".join(texts)
+    return out if len(out) <= limit else out[:limit].rsplit("\n\n", 1)[0] + "\n\n… и другие, см. `python -m app.monitor`"
+
+
 def _send(text: str) -> None:
     try:
         alerts.send_admin_alert(text)
@@ -212,8 +221,11 @@ async def monitor_loop(interval: int) -> None:
         await asyncio.sleep(interval)
         try:
             snap = await asyncio.to_thread(collect)
-            for text in evaluate(snap, state):
-                await asyncio.to_thread(_send, text)
+            texts = evaluate(snap, state)
+            if texts:
+                # One message per check, not one per problem: a host-wide event
+                # (memory pressure, docker restart) hits many projects at once.
+                await asyncio.to_thread(_send, digest(texts))
         except Exception as exc:
             print(f"[monitor] ошибка проверки: {exc}")
 
