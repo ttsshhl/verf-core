@@ -112,6 +112,10 @@ class MonitorState:
         self.alerted_at: dict[str, float] = {}   # problem key -> when we last alerted
         self.restarts: dict[str, list] = {}      # slug -> [(ts, restart_count)]
         self.labels: dict[str, str] = {}         # problem key -> short name for the recovery message
+        self.loop_since: dict[str, float] = {}   # slug -> when it first looked crash-looping
+        self.loop_ok_passes: dict[str, int] = {} # slug -> consecutive checks without looping (flicker tolerance)
+        self.autostopped: set[str] = set()       # slugs we already stopped (until they run again)
+        self.actions: list[tuple[str, str]] = [] # (slug, owner) to auto-stop, drained by the loop
 
 
 def _problems(snap: dict, state: MonitorState, now: float) -> dict[str, str]:
@@ -153,13 +157,43 @@ def _problems(snap: dict, state: MonitorState, now: float) -> dict[str, str]:
             how = f"{burst} раз за {RESTART_WINDOW // 60} мин" if burst >= RESTART_BURST else f"код выхода {c['exit_code']}"
             bad[f"loop:{slug}"] = (f"🔴 {slug} ({owner}) падает и перезапускается по кругу "
                                    f"({how}). Логи: `docker logs --tail 50 verf-{slug}`")
-        elif c["status"] in ("exited", "dead"):
+        elif c["status"] in ("exited", "dead") and slug not in state.autostopped:
             bad[f"down:{slug}"] = (f"🔴 {slug} ({owner}) остановлен, код выхода {c['exit_code']}. "
                                    f"Логи: `docker logs --tail 50 verf-{slug}`")
     for key in bad:
         if key.split(":")[0] in ("oom", "loop", "down"):
             state.labels[key] = key.split(":", 1)[1]
     return bad
+
+
+def _track_crash_loops(snap: dict, bad: dict, state: MonitorState, now: float) -> None:
+    """A project that keeps crash-looping past CRASHLOOP_STOP_MINUTES gets
+    queued for an automatic stop (the loop does the docker/email part)."""
+    looping = {k.split(":", 1)[1] for k in bad if k.startswith("loop:")}
+    owners = {c["slug"]: c["owner"] for c in snap.get("containers", [])}
+    running = {c["slug"] for c in snap.get("containers", []) if c["status"] == "running"}
+
+    for slug in looping:
+        state.loop_since.setdefault(slug, now)
+        state.loop_ok_passes[slug] = 0
+    for slug in list(state.loop_since):
+        if slug in looping:
+            continue
+        state.loop_ok_passes[slug] = state.loop_ok_passes.get(slug, 0) + 1
+        if state.loop_ok_passes[slug] >= 3 or slug not in owners:   # really recovered, or deleted
+            state.loop_since.pop(slug, None)
+            state.loop_ok_passes.pop(slug, None)
+    for slug in list(state.autostopped):
+        if slug in running and slug not in looping:   # the customer redeployed and it stays up
+            state.autostopped.discard(slug)
+
+    limit = config.CRASHLOOP_STOP_MINUTES * 60
+    if limit <= 0:
+        return
+    for slug, since in state.loop_since.items():
+        if now - since >= limit and slug not in state.autostopped and slug in owners:
+            state.autostopped.add(slug)
+            state.actions.append((slug, owners[slug]))
 
 
 def evaluate(snap: dict, state: MonitorState, now: float | None = None) -> list[str]:
@@ -180,6 +214,8 @@ def evaluate(snap: dict, state: MonitorState, now: float | None = None) -> list[
             out.append("🔁 Всё ещё актуально: " + text)
             state.alerted_at[key] = now
 
+    _track_crash_loops(snap, bad, state, now)
+
     for key in list(state.bad_passes):
         if key in bad:
             continue
@@ -197,6 +233,24 @@ def evaluate(snap: dict, state: MonitorState, now: float | None = None) -> list[
 
 
 # ---------- running ----------
+
+def autostop(slug: str, owner: str) -> str:
+    """Stops a project that has been crash-looping too long, emails its owner
+    the reason, and returns the admin-facing line."""
+    from app import deployer, diagnose, notifications
+    tail = deployer.container_log_tail(slug, 20)
+    hint = diagnose.hint_for(tail)
+    deployer.stop_crashing(slug)
+    mailed = ""
+    if owner and "@" in owner:
+        try:
+            notifications.send_project_crashed_email(owner, slug, tail, hint)
+            mailed = ", владельцу отправлено письмо"
+        except notifications.EmailError as exc:
+            mailed = f", письмо не ушло ({exc})"
+    why = f" Причина: {hint}" if hint else ""
+    return f"⛔ Остановлен {slug} ({owner}): падал по кругу {config.CRASHLOOP_STOP_MINUTES}+ мин{mailed}.{why}"
+
 
 def digest(texts: list[str], limit: int = 3500) -> str:
     """Joins several alerts into one Telegram message (4096-char cap)."""
@@ -222,6 +276,9 @@ async def monitor_loop(interval: int) -> None:
         try:
             snap = await asyncio.to_thread(collect)
             texts = evaluate(snap, state)
+            while state.actions:
+                slug, owner = state.actions.pop(0)
+                texts.append(await asyncio.to_thread(autostop, slug, owner))
             if texts:
                 # One message per check, not one per problem: a host-wide event
                 # (memory pressure, docker restart) hits many projects at once.

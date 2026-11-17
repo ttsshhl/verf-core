@@ -197,3 +197,23 @@ def send_password_reset_email(to: str, link: str, ttl_minutes: int) -> None:
       <a href="{link}" {_BTN}>Задать новый пароль</a>
     """)
     send_email(to, "Сброс пароля VERF", html)
+
+
+def send_project_crashed_email(to: str, slug: str, log_tail: str, hint: str | None) -> None:
+    import html as _html
+    hint_html = f'<p style="font-size: 14px; line-height: 1.6;"><b>Что делать:</b> {_html.escape(hint)}</p>' if hint else ""
+    tail_html = (f'<pre style="background:#F2F5F8; padding:12px; border-radius:4px; font-size:12px; overflow-x:auto; white-space:pre-wrap;">'
+                 f'{_html.escape(log_tail[-1500:])}</pre>') if log_tail else ""
+    page = _brand_wrapper(f"""
+      <h2 style="font-size: 20px; margin-bottom: 12px;">Проект «{_html.escape(slug)}» остановлен</h2>
+      <p style="font-size: 14px; line-height: 1.6;">
+        Проект постоянно падал при запуске, поэтому мы остановили его, чтобы он не перезапускался по кругу и не
+        нагружал сервер. Ничего не удалено.
+      </p>
+      {hint_html}
+      <p style="font-size: 13px; color:#555;">Последние строки лога:</p>
+      {tail_html}
+      <p style="font-size: 14px; line-height: 1.6;">Исправьте причину и запустите проект заново в личном кабинете (кнопка перезапуска или новый деплой).</p>
+      <a href="https://cabinet.verfdeploy.ru" {_BTN}>Открыть кабинет</a>
+    """)
+    send_email(to, f"Проект {slug} остановлен: не удаётся запуститься", page)
