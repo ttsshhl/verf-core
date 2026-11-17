@@ -10,19 +10,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #0C1B52;
-    --bg-paper: #142869;
-    --surface-2: #1B3180;
-    --ink: #E9EEFF;
-    --ink-soft: #A9B6E0;
-    --grid: #2A3F8F;
-    --accent: #FC734D;
-    --accent-dim: rgba(252,115,77,.14);
-    --brass: #A9C0FF;
+    --bg: #0D1722;
+    --bg-paper: #182330;
+    --surface-2: #111A26;
+    --ink: #E6EEF4;
+    --ink-soft: #8D98A5;
+    --grid: #1A2532;
+    --accent: #D76F4D;
+    --accent-dim: rgba(215,111,77,.14);
+    --brass: #8FA9C2;
     --live: #14B889;
     --danger: #FF6B6B;
-    --line: #2C4296;
-    --blue: #1B4BB8;
+    --line: #283441;
+    --blue: #425C74;
+    --btn2: #293D50;
     --radius: 14px;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -209,69 +210,109 @@
     .form-row{ grid-template-columns:1fr; }
   }
 
-  /* ---------- dark theme: matches landing ---------- */
+  /* ---------- theme: neutral navy (reference design) ---------- */
   .blueprint-bg{ background-image:none; }
   body{ background:var(--bg); color:var(--ink); color-scheme:dark; }
-  #auth-screen{ background:radial-gradient(700px 420px at 50% 40%, rgba(70,110,230,.3), transparent 72%), linear-gradient(180deg,#0A1745 0%,#0E2062 60%,#12297A 100%); }
-  .auth-card{ background:var(--bg-paper); border:1px solid var(--line); border-radius:24px; padding:40px 34px; box-shadow:0 30px 70px rgba(0,0,0,.55); }
+  #auth-screen{ background:var(--bg); }
+  .auth-card{ background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; padding:40px 34px; box-shadow:none; }
   .auth-logo, .logo{ letter-spacing:-.01em; color:#fff; }
-  .auth-logo .mark, .logo .mark{ width:14px; height:14px; border:none; border-radius:50%; background:var(--accent); box-shadow:none; }
+  .auth-logo .mark, .logo .mark{ width:12px; height:12px; border:none; border-radius:50%; background:var(--accent); box-shadow:none; }
   .auth-logo .mark::after, .logo .mark::after{ display:none; }
   .auth-tabs{ border:none; background:var(--surface-2); border-radius:999px; padding:4px; }
-  .auth-tab{ border-radius:999px; font-weight:700; color:var(--ink-soft); }
+  .auth-tab{ border-radius:999px; font-weight:600; color:var(--ink-soft); }
   .auth-tab.active{ background:var(--blue); color:#fff; }
-  .field input, .field-sm input, .field-sm select, select, input[type=text], input[type=email], input[type=password]{
-    border-radius:12px; border:1.5px solid var(--line); padding:11px 14px; background:var(--surface-2); color:var(--ink); }
-  ::placeholder{ color:#7F90C4; }
-  .field input:focus, .field-sm input:focus, .field-sm select:focus{ border-color:#4C6FD6; outline:none; box-shadow:0 0 0 4px rgba(76,111,214,.2); }
-  .btn{ border-radius:999px; border:none; background:var(--blue); color:#fff; font-weight:700; padding:12px 22px; transition:transform .15s, box-shadow .15s, opacity .15s; }
-  .btn:hover{ opacity:1; transform:translateY(-1px); box-shadow:0 10px 24px rgba(0,0,0,.45); }
-  .btn-ghost{ background:var(--surface-2); color:var(--ink); border:1.5px solid var(--line); }
-  .btn-danger{ background:transparent; border:1.5px solid var(--danger); color:var(--danger); }
-  #np-submit, .btn-accent{ background:var(--accent); color:#06205F; }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea{
+    background:var(--surface-2) !important; color:#fff !important; border:1px solid #363F4B !important;
+    border-radius:12px; padding:11px 14px; color-scheme:dark; }
+  input::placeholder, textarea::placeholder{ color:#6B7683 !important; opacity:1; }
+  input:not([type=file]):focus, select:focus, textarea:focus{ border-color:var(--accent) !important; box-shadow:0 0 0 3px rgba(215,111,77,.18) !important; outline:none; }
+  select option{ background:#111A26; color:#fff; }
+  #toggle-password, #toggle-password-confirm{ color:#8D98A5 !important; }
+  .field label, label, .field-sm label{ color:#E6EEF4; }
+  .btn{ border-radius:12px; border:none; background:var(--btn2); color:#fff; font-weight:600; padding:12px 22px; transition:filter .15s; }
+  .btn:hover{ opacity:1; filter:brightness(1.12); transform:none; box-shadow:none; }
+  .btn-ghost{ background:var(--btn2); color:#fff; border:none; }
+  .btn-danger{ background:transparent; border:1px solid var(--danger); color:var(--danger); }
+  #np-submit, .btn-accent{ background:var(--accent); color:#fff; }
+  .auth-card .btn:not(.btn-ghost):not(.btn-danger){ background:var(--accent); color:#fff; }
   .error-msg{ border-radius:12px; color:#FF9A9A; }
 
-  header{ background:linear-gradient(180deg,#0A1845,#10246B); border-bottom:1px solid var(--line); backdrop-filter:none; padding:18px 0; }
-  .header-inner, .wrap{ max-width:1000px; }
-  .logo{ font-size:20px; font-weight:800; }
-  .user-info{ color:var(--ink-soft); }
-  header .icon-btn{ background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.25); border-radius:999px; padding:7px 16px; font-family:'Manrope',sans-serif; font-weight:700; }
-  header .icon-btn:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.5); color:#fff; }
+  header{ background:var(--bg); border-bottom:1px solid #121C27; backdrop-filter:none; padding:18px 0; position:static; }
+  .header-inner, .wrap{ max-width:1024px; }
+  .logo{ font-size:20px; font-weight:700; }
+  .user-info{ color:#CDD8E3; }
+  header .icon-btn{ background:transparent; color:#fff; border:1px solid #505865; border-radius:10px; padding:7px 16px; font-family:'Manrope',sans-serif; font-weight:600; }
+  header .icon-btn:hover{ background:rgba(255,255,255,.06); border-color:#7A8492; color:#fff; }
 
-  .tabs{ border-bottom:none; gap:6px; margin:28px 0 22px; }
-  .tab-btn{ margin:0; padding:9px 20px; border:none; border-radius:999px; font-weight:700; color:var(--ink-soft); background:transparent; }
-  .tab-btn:hover{ background:var(--surface-2); color:#fff; }
-  .tab-btn.active{ background:var(--blue); color:#fff; }
+  .tabs{ border-bottom:none; gap:8px; margin:28px 0 24px; }
+  .tab-btn{ margin:0; padding:9px 20px; border:none; border-radius:999px; font-weight:600; color:#767F89; background:transparent; }
+  .tab-btn:hover{ background:var(--bg-paper); color:#fff; }
+  .tab-btn.active{ background:var(--accent); color:#fff; }
 
-  .section-title{ font-weight:800; letter-spacing:-.01em; color:#fff; }
-  .project-card, .plan-card, .new-project-form{ background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; box-shadow:0 20px 40px -24px rgba(0,0,0,.7); }
-  .new-project-form{ padding:26px; }
+  .section-title{ font-weight:700; letter-spacing:-.01em; color:#fff; }
+  .project-card, .plan-card, .new-project-form{ background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; box-shadow:none; }
+  .new-project-form{ padding:26px; border-style:solid; }
   .project-detail, .deploy-row{ border-top-color:var(--line); }
   .project-url{ color:var(--brass); font-weight:500; }
   .kind-tag{ background:var(--surface-2); border:none; color:var(--brass); font-weight:600; }
-  .icon-btn{ border-radius:999px; border:1.5px solid var(--line); color:var(--ink); background:transparent; }
-  .icon-btn:hover{ border-color:#4C6FD6; color:#fff; }
-  .source-tab-btn{ border-radius:999px; border:1.5px solid var(--line); font-weight:600; background:transparent; color:var(--ink-soft); }
+  .icon-btn{ border-radius:10px; border:1px solid #363F4B; color:var(--ink); background:transparent; }
+  .icon-btn:hover{ border-color:#6B7683; color:#fff; }
+  .source-tab-btn{ border-radius:999px; border:1px solid #363F4B; font-weight:600; background:var(--surface-2); color:#DFE1E7; }
   .source-tab-btn.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
-  .webhook-box{ background:#0A1744; color:#E9EEFF; border:1px solid var(--line); border-radius:12px; }
-  .webhook-box .lbl{ color:#7F9CEB; }
+  .webhook-box{ background:var(--surface-2); color:#E6EEF4; border:1px solid var(--line); border-radius:12px; }
+  .webhook-box .lbl{ color:#8D98A5; }
   .status-pending, .status-cloning, .status-building, .status-starting{ background:var(--accent); }
-  .plan-badge{ background:var(--surface-2); border:none; color:var(--ink); font-weight:600; }
+  .plan-badge{ background:var(--bg-paper); border:1px solid var(--line); color:var(--ink); font-weight:600; }
   .plan-card .price{ color:#fff; font-weight:800; }
-  .empty-state{ background:var(--bg-paper); border:1.5px dashed var(--line); border-radius:20px; }
-  .toast{ background:var(--blue); color:#fff; border-radius:999px; }
+  .empty-state{ background:var(--bg-paper); border:1px solid var(--line); border-radius:20px; color:#F1FAFA; }
+  .toast{ background:var(--blue); color:#fff; border-radius:12px; }
   #trial-banner{ font-weight:600; background:var(--accent-dim); color:var(--ink); border-bottom:1px solid var(--line); }
+  .pay-overlay{ background:rgba(5,10,16,.75); }
+  .pay-box{ border-radius:20px; box-shadow:none; }
 
-  /* ---------- input fields: light, so they stand out from the dark cards ---------- */
-  input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea{
-    background:#F3F6FF !important; color:#0B1B45 !important; border:1.5px solid #C9D5F2 !important; color-scheme:light;
-  }
-  input::placeholder, textarea::placeholder{ color:#7A88B5 !important; opacity:1; }
-  input:not([type=file]):focus, select:focus, textarea:focus{ border-color:#FC734D !important; box-shadow:0 0 0 4px rgba(252,115,77,.22) !important; outline:none; background:#FFFFFF !important; }
-  select option{ background:#FFFFFF; color:#0B1B45; }
-  #toggle-password, #toggle-password-confirm{ color:#52618A !important; }
-  .field label, label{ color:#C4D0F2; }
-
+  
+  /* custom repo dropdown */
+  .rs{ position:relative; }
+  .rs-btn{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; text-align:left; cursor:pointer;
+    background:var(--surface-2); color:#fff; border:1px solid #363F4B; border-radius:12px; padding:13px 16px; font-size:15px; }
+  .rs-btn:hover{ border-color:#4A5563; }
+  .rs-pop{ display:none; position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:50; background:#111A26; border:1px solid #363F4B; border-radius:12px; padding:8px; box-shadow:0 18px 40px rgba(0,0,0,.55); }
+  .rs-pop.show{ display:block; }
+  .rs-pop input{ margin-bottom:6px; }
+  .rs-list{ max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
+  .rs-item{ padding:9px 12px; border-radius:8px; cursor:pointer; font-size:14.5px; color:#E6EEF4; }
+  .rs-item:hover{ background:#1B2A3A; }
+  .rs-item.sel{ background:#425C74; color:#fff; }
+  .rs-empty{ padding:10px 12px; color:#8D98A5; font-size:14px; }
+  /* GitHub connect button: gray, GitHub-style */
+  #github-connect-btn{ background:#21262D !important; color:#F0F6FC !important; border:1px solid #30363D !important; border-radius:10px !important; font-weight:600; }
+  #github-connect-btn:hover{ background:#30363D !important; border-color:#8B949E !important; filter:none; }
+  /* sizing to match reference */
+  body{ font-size:15.5px; }
+  .header-inner, .wrap{ max-width:1072px; }
+  header{ padding:20px 0; border-bottom-color:#18232F; }
+  .logo{ font-size:21px; }
+  .user-info{ font-size:15px; }
+  header .icon-btn{ padding:9px 18px; font-size:13.5px; }
+  .tabs{ margin:26px 0 22px; }
+  .tab-btn{ padding:11px 22px; font-size:16px; color:#F6FBFF; }
+  .tab-btn.active{ background:#D76F4D; }
+  .new-project-form{ padding:28px; }
+  .section-title{ font-size:20px; }
+  .new-project-form .section-title{ font-size:20px !important; margin-bottom:10px !important; }
+  select, input:not([type=file]){ border-radius:12px !important; }
+  .tabs{ margin:22px 0 20px; }
+  .new-project-form{ padding:24px 28px; }
+  #github-connected-block{ font-size:15.5px !important; color:#DAE0E9 !important; margin-bottom:18px !important; }
+  .field-sm label, .field label{ font-size:14px; margin-bottom:8px; }
+  .form-row{ gap:16px; margin-bottom:16px; }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea{ padding:13px 16px; font-size:15px; }
+  .source-tab-btn{ padding:9px 18px; font-size:14.5px; font-weight:500; color:#DFE1E7; }
+  .source-tab-btn.active{ font-weight:700; color:#fff; }
+  .btn{ font-size:15px; }
+  #np-submit{ border-radius:999px; }
+  .empty-state{ padding:42px 20px; font-size:15.5px; }
+  .wrap .section-title{ margin-top:6px; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
 </style>
 </head>
@@ -366,7 +407,7 @@
         <div class="section-title" style="margin-bottom:14px; font-size:16px;">Новый проект</div>
 
         <div id="github-connect-block" style="text-align:center; padding:22px; margin-bottom:20px; border:1px dashed var(--line); border-radius:6px; display:none;">
-          <button type="button" class="btn btn-primary" id="github-connect-btn" style="max-width:280px; margin:0 auto; padding:14px 28px; font-size:15px;">Подключить GitHub</button>
+          <button type="button" class="btn btn-primary" id="github-connect-btn" style="max-width:300px; margin:0 auto; padding:14px 28px; font-size:15px; gap:10px;"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Подключить GitHub</button>
         </div>
         <div id="github-connected-block" style="display:none; text-align:center; margin-bottom:16px; font-size:12.5px; color:var(--ink-soft);">
           GitHub: <b id="github-username-display" style="color:var(--ink);"></b> &nbsp;·&nbsp; <a href="#" id="github-disconnect-btn" style="color:var(--ink-soft); text-decoration:underline;">отключить</a>
@@ -400,7 +441,11 @@
           <div class="form-row full" id="source-github-wrap">
             <div class="field-sm">
               <label for="np-repo-select">Репозиторий</label>
-              <select id="np-repo-select"></select>
+              <select id="np-repo-select" style="display:none !important"></select>
+              <div class="rs" id="np-repo-dd">
+                <button type="button" class="rs-btn" id="np-repo-btn"><span id="np-repo-label">Выбери репозиторий</span><svg width="12" height="8" viewBox="0 0 12 8" fill="none"><path d="M1 1.5l5 5 5-5" stroke="#8D98A5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div class="rs-pop" id="np-repo-pop"><input type="text" id="np-repo-search" placeholder="Поиск…" autocomplete="off"><div class="rs-list" id="np-repo-list"></div></div>
+              </div>
             </div>
           </div>
           <div class="form-row full" id="source-url-wrap" style="display:none;">
@@ -762,7 +807,7 @@ function renderProjects(projects){
 
         <div class="logs-section" data-slug="${p.slug}" style="margin-top:12px;">
           <button type="button" class="icon-btn logs-toggle-btn">показать логи контейнера</button>
-          <div class="logs-box mono" style="display:none; margin-top:8px; background:#0A1744; color:#B9C6D6; border-radius:4px; padding:10px 12px; font-size:11.5px; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
+          <div class="logs-box mono" style="display:none; margin-top:8px; background:#111A26; color:#B9C6D6; border-radius:4px; padding:10px 12px; font-size:11.5px; max-height:280px; overflow-y:auto; white-space:pre-wrap; word-break:break-all;"></div>
         </div>
       </div>
     </div>
@@ -802,7 +847,7 @@ document.getElementById('projects-list').addEventListener('click', async (e) => 
               <span style="color:var(--ink-soft); margin-left:auto;">${new Date(d.created_at).toLocaleString('ru-RU')}</span>
               ${d.status === 'failed' ? '<span style="color:var(--danger); font-size:11px;">показать причину ▾</span>' : ''}
             </div>
-            ${d.status === 'failed' ? `<div id="deploy-log-${i}" style="display:none; margin:4px 0 8px; padding:8px 10px; background:#0A1744; color:#B9C6D6; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto;">${escapeHtml(d.log || '(лог пуст)')}</div>` : ''}
+            ${d.status === 'failed' ? `<div id="deploy-log-${i}" style="display:none; margin:4px 0 8px; padding:8px 10px; background:#111A26; color:#B9C6D6; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow-y:auto;">${escapeHtml(d.log || '(лог пуст)')}</div>` : ''}
           `).join('');
         }
       }catch(err){
@@ -1169,6 +1214,7 @@ async function refreshGithubStatus(){
       select.innerHTML = repos.map(r =>
         `<option value="${r.full_name}" data-branch="${r.default_branch}">${r.private ? '🔒 ' : ''}${r.full_name}</option>`
       ).join('');
+      buildRepoDropdown();
       if(repos.length){
         const opt = select.options[0];
         document.getElementById('np-branch').value = opt.dataset.branch;
@@ -1184,6 +1230,46 @@ async function refreshGithubStatus(){
     if(currentSourceMode === 'github') setSourceMode('url');
   }
 }
+
+
+/* custom repo dropdown: always opens downward, searchable */
+function buildRepoDropdown(){
+  const sel = document.getElementById('np-repo-select');
+  const list = document.getElementById('np-repo-list');
+  const label = document.getElementById('np-repo-label');
+  const q = document.getElementById('np-repo-search').value.trim().toLowerCase();
+  label.textContent = sel.value || 'Выбери репозиторий';
+  list.innerHTML = '';
+  Array.from(sel.options).filter(o => !q || o.value.toLowerCase().includes(q)).forEach(o => {
+    const d = document.createElement('div');
+    d.className = 'rs-item' + (o.value === sel.value ? ' sel' : '');
+    d.textContent = o.textContent;
+    d.addEventListener('click', () => {
+      sel.value = o.value;
+      sel.dispatchEvent(new Event('change'));
+      closeRepoDropdown();
+      buildRepoDropdown();
+    });
+    list.appendChild(d);
+  });
+  if(!list.children.length){ list.innerHTML = '<div class="rs-empty">Ничего не найдено</div>'; }
+}
+function closeRepoDropdown(){ document.getElementById('np-repo-pop').classList.remove('show'); }
+document.getElementById('np-repo-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const pop = document.getElementById('np-repo-pop');
+  const open = !pop.classList.contains('show');
+  pop.classList.toggle('show', open);
+  if(open){
+    const inp = document.getElementById('np-repo-search'); inp.value = ''; buildRepoDropdown();
+    inp.focus({preventScroll:true});
+    const it = pop.querySelector('.rs-item.sel'); if(it) it.scrollIntoView({block:'nearest'});
+  }
+});
+document.getElementById('np-repo-search').addEventListener('input', buildRepoDropdown);
+document.getElementById('np-repo-pop').addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', closeRepoDropdown);
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeRepoDropdown(); });
 
 document.getElementById('np-repo-select').addEventListener('change', (e) => {
   const opt = e.target.options[e.target.selectedIndex];
@@ -1444,11 +1530,11 @@ if(resetToken){
 </script>
 
 <div id="support-widget" style="position:fixed; bottom:20px; right:20px; z-index:150; font-family:'Manrope', system-ui, sans-serif;">
-  <div id="support-popup" style="display:none; margin-bottom:10px; background:var(--bg-paper); border:1px solid var(--line); border-radius:16px; padding:14px 16px; box-shadow:0 6px 20px rgba(15,33,56,0.18); min-width:210px;">
+  <div id="support-popup" style="display:none; margin-bottom:10px; background:var(--bg-paper); border:1px solid var(--line); border-radius:16px; padding:14px 16px; box-shadow:none; min-width:210px;">
     <a href="https://t.me/houetoon" target="_blank" rel="noopener" style="display:block; font-size:13.5px; font-weight:600; color:var(--ink); text-decoration:none;">Написать в поддержку</a>
     <div style="font-size:11.5px; color:var(--ink-soft); margin-top:3px;">Ответим в Telegram</div>
   </div>
-  <button type="button" id="support-btn" style="width:52px; height:52px; border-radius:50%; background:#12307F; color:#fff; border:1px solid rgba(255,255,255,.16); cursor:pointer; box-shadow:0 4px 14px rgba(15,33,56,0.28); display:flex; align-items:center; justify-content:center;" aria-label="Поддержка">
+  <button type="button" id="support-btn" style="width:52px; height:52px; border-radius:50%; background:#2E4257; color:#fff; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(15,33,56,0.28); display:flex; align-items:center; justify-content:center;" aria-label="Поддержка">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
   </button>
 </div>

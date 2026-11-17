@@ -125,3 +125,32 @@ def test_loop_alert_for_restarting_status_shows_exit_code_not_fake_count():
     run(st, s, 0)
     out = run(st, s, 60)
     assert "код выхода 1" in out[0] and "1 раз" not in out[0]
+
+
+def test_swap_alone_is_not_an_incident_when_ram_is_fine():
+    st = monitor.MonitorState()
+    s = snap(mem=50, swap=90)
+    run(st, s, 0)
+    assert run(st, s, 60) == []
+
+
+def test_swap_alerts_when_ram_is_tight_too():
+    st = monitor.MonitorState()
+    s = snap(mem=80, swap=90)
+    run(st, s, 0)
+    out = run(st, s, 60)
+    assert any("Swap" in m for m in out)
+
+
+def test_container_stopped_on_purpose_is_not_an_incident():
+    st = monitor.MonitorState()
+    stopped = cont("manual", "exited", 1); stopped["policy"] = "unless-stopped"
+    run(st, snap(containers=[stopped]), 0)
+    assert run(st, snap(containers=[stopped]), 60) == []
+
+
+def test_exited_container_without_restart_policy_still_alerts():
+    st = monitor.MonitorState()
+    dead = cont("norestart", "exited", 2); dead["policy"] = "no"
+    run(st, snap(containers=[dead]), 0)
+    assert run(st, snap(containers=[dead]), 60)
