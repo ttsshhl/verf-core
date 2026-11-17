@@ -82,6 +82,7 @@ def docker_state(slug_owner: dict) -> dict:
             "oom": bool(state.get("OOMKilled")),
             "restart_count": attrs.get("RestartCount", 0),
             "mem_limit_mb": (attrs.get("HostConfig", {}).get("Memory") or 0) // (1024 * 1024),
+            "policy": (attrs.get("HostConfig", {}).get("RestartPolicy") or {}).get("Name", ""),
         })
     return {"containers": containers, "infra": infra}
 
@@ -131,7 +132,10 @@ def _problems(snap: dict, state: MonitorState, now: float) -> dict[str, str]:
 
     pct("mem", "Память", snap.get("mem_pct", 0), config.MONITOR_MEM_PCT,
         f" — свободно ~{snap.get('mem_available_mb', 0)} МБ. Посмотри `docker stats --no-stream`")
-    pct("swap", "Swap", snap.get("swap_pct", 0), config.MONITOR_SWAP_PCT, " — признак нехватки RAM")
+    # A full swap with plenty of free RAM is just old idle pages parked there —
+    # not an incident. It matters only when memory is tight as well.
+    if snap.get("mem_pct", 0) >= config.MONITOR_MEM_PCT - 15 or "swap" in state.alerted_at:
+        pct("swap", "Swap", snap.get("swap_pct", 0), config.MONITOR_SWAP_PCT, " — RAM на исходе, система свопится")
     pct("disk", "Диск", snap.get("disk_pct", 0), config.MONITOR_DISK_PCT, " — почисти `docker system prune -af`")
 
     if snap.get("docker_error"):
@@ -157,7 +161,12 @@ def _problems(snap: dict, state: MonitorState, now: float) -> dict[str, str]:
             how = f"{burst} раз за {RESTART_WINDOW // 60} мин" if burst >= RESTART_BURST else f"код выхода {c['exit_code']}"
             bad[f"loop:{slug}"] = (f"🔴 {slug} ({owner}) падает и перезапускается по кругу "
                                    f"({how}). Логи: `docker logs --tail 50 verf-{slug}`")
-        elif c["status"] in ("exited", "dead") and slug not in state.autostopped:
+        elif (c["status"] in ("exited", "dead") and slug not in state.autostopped
+              and c.get("policy", "no") not in ("unless-stopped", "always")):
+            # With restart policy unless-stopped/always Docker brings a crashed
+            # container straight back (we'd see "restarting"), so a container
+            # that stays "exited" was stopped ON PURPOSE — by the admin, by a
+            # lapsed plan, or by our own auto-stop — and is not an incident.
             bad[f"down:{slug}"] = (f"🔴 {slug} ({owner}) остановлен, код выхода {c['exit_code']}. "
                                    f"Логи: `docker logs --tail 50 verf-{slug}`")
     for key in bad:
